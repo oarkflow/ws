@@ -63,7 +63,10 @@ class WebSocketConnection {
         if (!topic) return this;
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const message = `subscribe:${topic}`;
+            const message = JSON.stringify({
+                t: 4, // MsgSubscribe
+                topic: topic
+            });
             this.ws.send(message);
             this.subscriptions.add(topic);
             this.emit('subscribed', { topic });
@@ -79,7 +82,10 @@ class WebSocketConnection {
         if (!topic) return this;
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const message = `unsubscribe:${topic}`;
+            const message = JSON.stringify({
+                t: 5, // MsgUnsubscribe
+                topic: topic
+            });
             this.ws.send(message);
             this.subscriptions.delete(topic);
             this.emit('unsubscribed', { topic });
@@ -92,7 +98,11 @@ class WebSocketConnection {
         if (!topic || !data) return this;
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const message = `publish:${topic}:${JSON.stringify(data)}`;
+            const message = JSON.stringify({
+                t: 1, // MsgBroadcast
+                topic: topic,
+                data: data
+            });
             this.ws.send(message);
             this.emit('published', { topic, data });
         }
@@ -147,14 +157,22 @@ class WebSocketConnection {
         try {
             // Try to parse as JSON first
             const parsed = JSON.parse(data);
-            if (parsed.event && parsed.topic) {
+
+            // Check if it's compact format (has 't' field)
+            if (parsed.t !== undefined) {
+                // Convert compact message to readable format
+                const readableMsg = this.convertCompactToReadable(parsed);
+                this.emit(readableMsg.event, readableMsg);
+                this.emit('message', readableMsg);
+            } else if (parsed.event) {
+                // Legacy format
                 this.emit(parsed.event, parsed);
                 this.emit('message', parsed);
             } else {
                 this.emit('message', { data: parsed });
             }
         } catch (e) {
-            // Handle as plain text
+            // Handle as plain text (backward compatibility)
             if (data.startsWith('subscribed:')) {
                 const topic = data.substring(11);
                 this.emit('subscription_confirmed', { topic });
@@ -165,6 +183,29 @@ class WebSocketConnection {
                 this.emit('message', { data });
             }
         }
+    }
+
+    convertCompactToReadable(compactMsg) {
+        const typeMap = {
+            1: 'broadcast',
+            2: 'private',
+            3: 'system',
+            4: 'subscribe',
+            5: 'unsubscribe',
+            6: 'ping',
+            7: 'pong',
+            8: 'error',
+            9: 'ack'
+        };
+
+        return {
+            event: typeMap[compactMsg.t] || 'unknown',
+            topic: compactMsg.topic,
+            to: compactMsg.to,
+            data: compactMsg.data,
+            code: compactMsg.code,
+            id: compactMsg.id
+        };
     }
 
     getSubscriptions() {
@@ -221,6 +262,34 @@ function initializeWebSocket() {
     wscon.on('published', (data) => {
         logMessage(`Published to ${data.topic}: ${JSON.stringify(data.data)}`, 'sent');
     });
+
+    wscon.on('welcome', (data) => {
+        logMessage(`Server welcome: ${data.message}`, 'received');
+    });
+
+    wscon.on('pong', (data) => {
+        logMessage(`Pong received: ${JSON.stringify(data)}`, 'received');
+    });
+
+    wscon.on('heartbeat', (data) => {
+        logMessage(`Heartbeat: ${data.connections} connections`, 'received');
+    });
+
+    wscon.on('ack', (data) => {
+        logMessage(`Server acknowledged: ${JSON.stringify(data)}`, 'received');
+    });
+
+    wscon.on('broadcast', (data) => {
+        logMessage(`Broadcast received: ${JSON.stringify(data)}`, 'received');
+    });
+
+    wscon.on('test_broadcast_response', (data) => {
+        logMessage(`Test broadcast response: ${JSON.stringify(data)}`, 'received');
+    });
+
+    wscon.on('announcement', (data) => {
+        logMessage(`Announcement: ${JSON.stringify(data)}`, 'received');
+    });
 }
 
 const statusEl = document.getElementById('status');
@@ -229,6 +298,8 @@ const disconnectBtn = document.getElementById('disconnectBtn');
 const subscribeBtn = document.getElementById('subscribeBtn');
 const unsubscribeBtn = document.getElementById('unsubscribeBtn');
 const publishBtn = document.getElementById('publishBtn');
+const pingBtn = document.getElementById('pingBtn');
+const broadcastBtn = document.getElementById('broadcastBtn');
 const topicInput = document.getElementById('topicInput');
 const messageInput = document.getElementById('messageInput');
 const logContainer = document.getElementById('logContainer');
@@ -242,6 +313,8 @@ function updateStatus(connected) {
         subscribeBtn.disabled = false;
         unsubscribeBtn.disabled = false;
         publishBtn.disabled = false;
+        pingBtn.disabled = false;
+        broadcastBtn.disabled = false;
     } else {
         statusEl.textContent = 'Disconnected';
         statusEl.className = 'disconnected';
@@ -250,6 +323,8 @@ function updateStatus(connected) {
         subscribeBtn.disabled = true;
         unsubscribeBtn.disabled = true;
         publishBtn.disabled = true;
+        pingBtn.disabled = true;
+        broadcastBtn.disabled = true;
     }
 }
 
@@ -308,12 +383,40 @@ function publish() {
     }
 }
 
+function ping() {
+    if (wscon) {
+        const message = JSON.stringify({
+            t: 6, // MsgPing
+            data: { timestamp: Date.now() }
+        });
+        wscon.ws.send(message);
+        logMessage('Sent ping to server', 'sent');
+    }
+}
+
+function testBroadcast() {
+    if (wscon) {
+        const message = JSON.stringify({
+            t: 1, // MsgBroadcast
+            topic: 'test',
+            data: {
+                message: 'This is a broadcast test from client',
+                timestamp: Date.now()
+            }
+        });
+        wscon.ws.send(message);
+        logMessage('Sent broadcast test', 'sent');
+    }
+}
+
 // Event listeners
 connectBtn.addEventListener('click', connect);
 disconnectBtn.addEventListener('click', disconnect);
 subscribeBtn.addEventListener('click', subscribe);
 unsubscribeBtn.addEventListener('click', unsubscribe);
 publishBtn.addEventListener('click', publish);
+pingBtn.addEventListener('click', ping);
+broadcastBtn.addEventListener('click', testBroadcast);
 
 // Initialize status
 updateStatus(false);
