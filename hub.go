@@ -115,14 +115,14 @@ func (h *Hub) BroadcastExcept(event string, data interface{}, excludeSocket *Soc
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	// Create compact message
+	// Create unified message
 	msgType := stringToMsgType(event)
-	compactMsg := CompactMessage{
+	msg := Message{
 		T:    msgType,
 		Data: data,
 	}
 
-	if jsonData, err := json.Marshal(compactMsg); err == nil {
+	if jsonData, err := json.Marshal(msg); err == nil {
 		sentCount := 0
 		for _, socket := range h.sockets {
 			if !socket.IsBanned() && socket != excludeSocket {
@@ -138,13 +138,13 @@ func (h *Hub) BroadcastExcept(event string, data interface{}, excludeSocket *Soc
 	}
 }
 
-// BroadcastCompact sends a pre-built compact message
-func (h *Hub) BroadcastCompact(msg CompactMessage) {
-	h.BroadcastCompactExcept(msg, nil)
+// BroadcastMessage sends a pre-built unified Message
+func (h *Hub) BroadcastMessage(msg Message) {
+	h.BroadcastMessageExcept(msg, nil)
 }
 
-// BroadcastCompactExcept sends a compact message excluding the sender
-func (h *Hub) BroadcastCompactExcept(msg CompactMessage, excludeSocket *Socket) {
+// BroadcastMessageExcept sends a unified Message excluding the sender
+func (h *Hub) BroadcastMessageExcept(msg Message, excludeSocket *Socket) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -157,36 +157,9 @@ func (h *Hub) BroadcastCompactExcept(msg CompactMessage, excludeSocket *Socket) 
 			}
 		}
 		if excludeSocket != nil {
-			log.Printf("Broadcasting compact type %d to %d clients (excluding sender)", msg.T, sentCount)
+			log.Printf("Broadcasting message type %d to %d clients (excluding sender)", msg.T, sentCount)
 		} else {
-			log.Printf("Broadcasting compact type %d to %d clients", msg.T, sentCount)
-		}
-	}
-}
-
-// BroadcastUltraCompact sends an ultra-compact message to all clients
-func (h *Hub) BroadcastUltraCompact(msg UltraCompactMessage) {
-	h.BroadcastUltraCompactExcept(msg, nil)
-}
-
-// BroadcastUltraCompactExcept sends an ultra-compact message excluding the sender
-func (h *Hub) BroadcastUltraCompactExcept(msg UltraCompactMessage, excludeSocket *Socket) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	if jsonData, err := json.Marshal(msg); err == nil {
-		sentCount := 0
-		for _, socket := range h.sockets {
-			if !socket.IsBanned() && socket != excludeSocket {
-				socket.conn.writeAsync(jsonData)
-				sentCount++
-			}
-		}
-		msgType := msg.Type()
-		if excludeSocket != nil {
-			log.Printf("Broadcasting ultra-compact type %d to %d clients (excluding sender)", msgType, sentCount)
-		} else {
-			log.Printf("Broadcasting ultra-compact type %d to %d clients", msgType, sentCount)
+			log.Printf("Broadcasting message type %d to %d clients", msg.T, sentCount)
 		}
 	}
 }
@@ -197,8 +170,8 @@ func (h *Hub) Notify(socketIDs []string, event string, data interface{}) {
 	defer h.mu.RUnlock()
 
 	message := Message{
-		Event: event,
-		Data:  data,
+		T:    stringToMsgType(event),
+		Data: data,
 	}
 
 	if jsonData, err := json.Marshal(message); err == nil {

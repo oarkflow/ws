@@ -236,57 +236,94 @@ func (s *Server) handleMessage(socket *Socket, payload []byte) {
 	// Try to parse as JSON first (this handles both arrays and objects)
 	var jsonValue interface{}
 	if err := json.Unmarshal(payload, &jsonValue); err == nil {
-		// Check if it's an array (ultra-compact format)
+		// Check if it's an array (legacy ultra-compact format)
 		if arr, ok := jsonValue.([]interface{}); ok {
-			ultraCompactMsg := UltraCompactMessage(arr)
-			s.handleUltraCompactMessage(socket, ultraCompactMsg)
+			var msg Message
+			// [type, topic?, data?, id?, to?, code?]
+			if len(arr) > 0 {
+				switch t := arr[0].(type) {
+				case float64:
+					msg.T = int(t)
+				case int:
+					msg.T = t
+				}
+			}
+			if len(arr) > 1 {
+				if topic, ok := arr[1].(string); ok {
+					msg.Topic = topic
+				}
+			}
+			if len(arr) > 2 {
+				msg.Data = arr[2]
+			}
+			if len(arr) > 3 {
+				if id, ok := arr[3].(string); ok {
+					msg.ID = id
+				}
+			}
+			if len(arr) > 4 {
+				if to, ok := arr[4].(string); ok {
+					msg.To = to
+				}
+			}
+			if len(arr) > 5 {
+				switch code := arr[5].(type) {
+				case float64:
+					msg.Code = int(code)
+				case int:
+					msg.Code = code
+				}
+			}
+			s.handleUnifiedMessage(socket, msg)
 			return
 		}
 
 		// Check if it's an object (compact or legacy format)
 		if obj, ok := jsonValue.(map[string]interface{}); ok {
-			// Check for compact format (has 't' field)
+			// Unified/compact format (has 't' field)
 			if t, hasT := obj["t"]; hasT {
-				if tInt, ok := t.(float64); ok {
-					compactMsg := CompactMessage{
-						T: int(tInt),
-					}
-					if topic, ok := obj["topic"].(string); ok {
-						compactMsg.Topic = topic
-					}
-					if data, exists := obj["data"]; exists {
-						compactMsg.Data = data
-					}
-					if id, ok := obj["id"].(string); ok {
-						compactMsg.ID = id
-					}
-					if to, ok := obj["to"].(string); ok {
-						compactMsg.To = to
-					}
-					if code, ok := obj["code"].(float64); ok {
-						compactMsg.Code = int(code)
-					}
-					s.handleCompactMessage(socket, compactMsg)
-					return
+				var msg Message
+				switch tv := t.(type) {
+				case float64:
+					msg.T = int(tv)
+				case int:
+					msg.T = tv
 				}
+				if topic, ok := obj["topic"].(string); ok {
+					msg.Topic = topic
+				}
+				if data, exists := obj["data"]; exists {
+					msg.Data = data
+				}
+				if id, ok := obj["id"].(string); ok {
+					msg.ID = id
+				}
+				if to, ok := obj["to"].(string); ok {
+					msg.To = to
+				}
+				if code, ok := obj["code"].(float64); ok {
+					msg.Code = int(code)
+				}
+				s.handleUnifiedMessage(socket, msg)
+				return
 			}
 
-			// Check for legacy format (has 'event' field)
+			// Legacy format (has 'event' field)
 			if event, hasEvent := obj["event"]; hasEvent {
 				if eventStr, ok := event.(string); ok {
-					legacyMsg := Message{
-						Event: eventStr,
+					msg := Message{
+						T: stringToMsgType(eventStr),
 					}
 					if topic, ok := obj["topic"].(string); ok {
-						legacyMsg.Topic = topic
+						msg.Topic = topic
 					}
 					if data, exists := obj["data"]; exists {
-						legacyMsg.Data = data
+						msg.Data = data
 					}
 					if id, ok := obj["id"].(string); ok {
-						legacyMsg.ID = id
+						msg.ID = id
 					}
-					s.handleLegacyMessage(socket, legacyMsg)
+					s.handleUnifiedMessage(socket, msg)
 					return
 				}
 			}
@@ -297,8 +334,8 @@ func (s *Server) handleMessage(socket *Socket, payload []byte) {
 	s.handleTextMessage(socket, message)
 }
 
-// handleCompactMessage handles compact protocol messages
-func (s *Server) handleCompactMessage(socket *Socket, msg CompactMessage) {
+// handleUnifiedMessage handles unified Message format
+func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 	// Trigger event handler based on message type
 	eventName := msgTypeToString(msg.T)
 	s.hub.triggerHandlers(eventName, socket)
@@ -306,126 +343,74 @@ func (s *Server) handleCompactMessage(socket *Socket, msg CompactMessage) {
 	switch msg.T {
 	case MsgSubscribe:
 		// Handle subscription
-		response := CompactMessage{
+		response := Message{
 			T:    MsgAck,
 			Data: map[string]string{"action": "subscribed", "topic": msg.Topic},
 		}
-		socket.SendCompact(response)
+		socket.SendMessage(response)
 
 	case MsgUnsubscribe:
 		// Handle unsubscription
-		response := CompactMessage{
+		response := Message{
 			T:    MsgAck,
 			Data: map[string]string{"action": "unsubscribed", "topic": msg.Topic},
 		}
-		socket.SendCompact(response)
+		socket.SendMessage(response)
 
 	case MsgBroadcast:
 		// Broadcast to all clients (excluding sender)
-		broadcastMsg := CompactMessage{
+		broadcastMsg := Message{
 			T:     MsgBroadcast,
 			Topic: msg.Topic,
 			Data:  msg.Data,
 		}
-		s.hub.BroadcastCompactExcept(broadcastMsg, socket)
+		s.hub.BroadcastMessageExcept(broadcastMsg, socket)
 
 	case MsgPing:
 		// Respond to ping
-		pongMsg := CompactMessage{
+		pongMsg := Message{
 			T:    MsgPong,
 			Data: map[string]int64{"timestamp": time.Now().Unix()},
 		}
-		socket.SendCompact(pongMsg)
+		socket.SendMessage(pongMsg)
 
 	default:
 		// For unknown types, send ack
-		ackMsg := CompactMessage{
+		ackMsg := Message{
 			T:    MsgAck,
 			Data: map[string]string{"status": "received"},
 		}
-		socket.SendCompact(ackMsg)
+		socket.SendMessage(ackMsg)
 	}
-}
-
-// handleUltraCompactMessage handles ultra-compact array messages
-func (s *Server) handleUltraCompactMessage(socket *Socket, msg UltraCompactMessage) {
-	msgType := msg.Type()
-
-	// Trigger event handler based on message type
-	eventName := ucMsgTypeToString(msgType)
-	s.hub.triggerHandlers(eventName, socket)
-
-	switch msgType {
-	case UCMsgSubscribe:
-		topic := msg.Topic()
-		response := NewUCMsg(UCMsgAck, topic, map[string]string{"action": "subscribed"})
-		socket.SendUltraCompact(response)
-
-	case UCMsgUnsubscribe:
-		topic := msg.Topic()
-		response := NewUCMsg(UCMsgAck, topic, map[string]string{"action": "unsubscribed"})
-		socket.SendUltraCompact(response)
-
-	case UCMsgBroadcast:
-		topic := msg.Topic()
-		data := msg.Data()
-		broadcastMsg := NewUCMsg(UCMsgBroadcast, topic, data)
-		s.hub.BroadcastUltraCompactExcept(broadcastMsg, socket)
-
-	case UCMsgPing:
-		data := msg.Data()
-		pongMsg := NewUCMsg(UCMsgPong, nil, map[string]int64{"timestamp": time.Now().Unix()})
-		if data != nil {
-			pongMsg = NewUCMsg(UCMsgPong, nil, data)
-		}
-		socket.SendUltraCompact(pongMsg)
-
-	default:
-		// For unknown types, send ack
-		ackMsg := NewUCMsg(UCMsgAck, nil, map[string]string{"status": "received"})
-		socket.SendUltraCompact(ackMsg)
-	}
-}
-
-// handleLegacyMessage handles legacy Message format
-func (s *Server) handleLegacyMessage(socket *Socket, msg Message) {
-	// Convert legacy to compact and handle
-	compactMsg := CompactMessage{
-		T:     stringToMsgType(msg.Event),
-		Topic: msg.Topic,
-		Data:  msg.Data,
-		ID:    msg.ID,
-	}
-	s.handleCompactMessage(socket, compactMsg)
 }
 
 // handleTextMessage handles simple text protocol
 func (s *Server) handleTextMessage(socket *Socket, message string) {
 	if strings.HasPrefix(message, "subscribe:") {
 		topic := strings.TrimPrefix(message, "subscribe:")
-		response := CompactMessage{
+		response := Message{
 			T:    MsgAck,
 			Data: map[string]string{"action": "subscribed", "topic": topic},
 		}
-		socket.SendCompact(response)
+		socket.SendMessage(response)
 	} else if strings.HasPrefix(message, "unsubscribe:") {
 		topic := strings.TrimPrefix(message, "unsubscribe:")
-		response := CompactMessage{
+		response := Message{
 			T:    MsgAck,
 			Data: map[string]string{"action": "unsubscribed", "topic": topic},
 		}
-		socket.SendCompact(response)
+		socket.SendMessage(response)
 	} else if strings.HasPrefix(message, "publish:") {
 		parts := strings.SplitN(message, ":", 3)
 		if len(parts) == 3 {
 			topic := parts[1]
 			data := parts[2]
-			broadcastMsg := CompactMessage{
+			broadcastMsg := Message{
 				T:     MsgBroadcast,
 				Topic: topic,
 				Data:  data,
 			}
-			s.hub.BroadcastCompactExcept(broadcastMsg, socket)
+			s.hub.BroadcastMessageExcept(broadcastMsg, socket)
 		}
 	}
 }

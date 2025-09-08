@@ -15,7 +15,7 @@ func main() {
 	// Set up event handlers
 	hub.OnConnect(func(socket *Socket) {
 		log.Printf("Client connected: %s", socket.ID)
-		welcomeMsg := CompactMessage{
+		welcomeMsg := Message{
 			T: MsgSystem,
 			Data: map[string]interface{}{
 				"message": "Connected to WebSocket server",
@@ -23,7 +23,7 @@ func main() {
 				"type":    "welcome",
 			},
 		}
-		socket.SendCompact(welcomeMsg)
+		socket.SendMessage(welcomeMsg)
 	})
 
 	hub.OnMessage(func(socket *Socket) {
@@ -40,11 +40,11 @@ func main() {
 
 	// Custom event handler example
 	hub.On("ping", func(socket *Socket) {
-		pongMsg := CompactMessage{
+		pongMsg := Message{
 			T:    MsgPong,
 			Data: map[string]int64{"timestamp": time.Now().Unix()},
 		}
-		socket.SendCompact(pongMsg)
+		socket.SendMessage(pongMsg)
 	})
 
 	// Admin functionality example - broadcast every 30 seconds
@@ -52,7 +52,7 @@ func main() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			heartbeatMsg := CompactMessage{
+			heartbeatMsg := Message{
 				T: MsgSystem,
 				Data: map[string]interface{}{
 					"timestamp":   time.Now().Unix(),
@@ -60,7 +60,7 @@ func main() {
 					"type":        "heartbeat",
 				},
 			}
-			hub.BroadcastCompact(heartbeatMsg)
+			hub.BroadcastMessage(heartbeatMsg)
 		}
 	}()
 
@@ -71,7 +71,7 @@ func main() {
 			if message == "" {
 				message = "Test broadcast from HTTP endpoint"
 			}
-			broadcastMsg := CompactMessage{
+			broadcastMsg := Message{
 				T: MsgSystem,
 				Data: map[string]interface{}{
 					"message":   message,
@@ -80,7 +80,7 @@ func main() {
 					"type":      "announcement",
 				},
 			}
-			hub.BroadcastCompact(broadcastMsg)
+			hub.BroadcastMessage(broadcastMsg)
 			w.WriteHeader(200)
 			w.Write([]byte("Broadcast sent"))
 		} else {
