@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test Client</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Custom WebSocket Test Client</h1>
+        <div class="connection-status">
+            <span id="status">Disconnected</span>
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+
+        <div class="controls">
+            <div class="input-group">
+                <label for="topicInput">Topic:</label>
+                <input type="text" id="topicInput" placeholder="Enter topic name">
+            </div>
+            <div class="input-group">
+                <label for="messageInput">Message:</label>
+                <input type="text" id="messageInput" placeholder="Enter message">
+            </div>
+            <div class="buttons">
+                <button id="subscribeBtn" disabled>Subscribe</button>
+                <button id="unsubscribeBtn" disabled>Unsubscribe</button>
+                <button id="publishBtn" disabled>Publish</button>
+            </div>
+        </div>
+
+        <div class="log">
+            <h3>Message Log</h3>
+            <div id="logContainer"></div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>
