@@ -1,4 +1,227 @@
-let ws = null;
+class WebSocketConnection {
+    constructor(url, options = {}) {
+        this.url = url;
+        this.ws = null;
+        this.eventHandlers = {};
+        this.subscriptions = new Set();
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
+        this.reconnectInterval = options.reconnectInterval || 1000;
+        this.autoReconnect = options.autoReconnect !== false;
+        this.token = options.token || 'mysecrettoken';
+    }
+
+    connect() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            return this;
+        }
+
+        try {
+            const url = this.url + (this.url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(this.token);
+            this.ws = new WebSocket(url);
+
+            this.ws.onopen = (event) => {
+                this.reconnectAttempts = 0;
+                this.emit('open', event);
+            };
+
+            this.ws.onmessage = (event) => {
+                this.handleMessage(event.data);
+            };
+
+            this.ws.onclose = (event) => {
+                this.emit('close', event);
+                if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    setTimeout(() => {
+                        this.reconnectAttempts++;
+                        this.emit('reconnecting', { attempt: this.reconnectAttempts });
+                        this.connect();
+                    }, this.reconnectInterval * this.reconnectAttempts);
+                }
+            };
+
+            this.ws.onerror = (event) => {
+                this.emit('error', event);
+            };
+
+        } catch (error) {
+            this.emit('error', error);
+        }
+
+        return this;
+    }
+
+    disconnect() {
+        if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+        }
+        return this;
+    }
+
+    subscribe(topic) {
+        if (!topic) return this;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = `subscribe:${topic}`;
+            this.ws.send(message);
+            this.subscriptions.add(topic);
+            this.emit('subscribed', { topic });
+        } else {
+            // Queue subscription for when connection opens
+            this.once('open', () => this.subscribe(topic));
+        }
+
+        return this;
+    }
+
+    unsubscribe(topic) {
+        if (!topic) return this;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = `unsubscribe:${topic}`;
+            this.ws.send(message);
+            this.subscriptions.delete(topic);
+            this.emit('unsubscribed', { topic });
+        }
+
+        return this;
+    }
+
+    publish(topic, data) {
+        if (!topic || !data) return this;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = `publish:${topic}:${JSON.stringify(data)}`;
+            this.ws.send(message);
+            this.emit('published', { topic, data });
+        }
+
+        return this;
+    }
+
+    on(event, handler) {
+        if (!this.eventHandlers[event]) {
+            this.eventHandlers[event] = [];
+        }
+        this.eventHandlers[event].push(handler);
+        return this;
+    }
+
+    once(event, handler) {
+        const onceHandler = (...args) => {
+            this.off(event, onceHandler);
+            handler.apply(this, args);
+        };
+        return this.on(event, onceHandler);
+    }
+
+    off(event, handler) {
+        if (this.eventHandlers[event]) {
+            if (handler) {
+                const index = this.eventHandlers[event].indexOf(handler);
+                if (index > -1) {
+                    this.eventHandlers[event].splice(index, 1);
+                }
+            } else {
+                delete this.eventHandlers[event];
+            }
+        }
+        return this;
+    }
+
+    emit(event, data) {
+        if (this.eventHandlers[event]) {
+            this.eventHandlers[event].forEach(handler => {
+                try {
+                    handler(data);
+                } catch (error) {
+                    console.error('Event handler error:', error);
+                }
+            });
+        }
+        return this;
+    }
+
+    handleMessage(data) {
+        try {
+            // Try to parse as JSON first
+            const parsed = JSON.parse(data);
+            if (parsed.event && parsed.topic) {
+                this.emit(parsed.event, parsed);
+                this.emit('message', parsed);
+            } else {
+                this.emit('message', { data: parsed });
+            }
+        } catch (e) {
+            // Handle as plain text
+            if (data.startsWith('subscribed:')) {
+                const topic = data.substring(11);
+                this.emit('subscription_confirmed', { topic });
+            } else if (data.startsWith('unsubscribed:')) {
+                const topic = data.substring(13);
+                this.emit('unsubscription_confirmed', { topic });
+            } else {
+                this.emit('message', { data });
+            }
+        }
+    }
+
+    getSubscriptions() {
+        return Array.from(this.subscriptions);
+    }
+
+    isConnected() {
+        return this.ws && this.ws.readyState === WebSocket.OPEN;
+    }
+}
+
+// Global instance for the test interface
+let wscon = null;
+
+// Test interface functions
+function initializeWebSocket() {
+    wscon = new WebSocketConnection('wss://localhost:8080/ws', {
+        token: 'mysecrettoken',
+        autoReconnect: true,
+        maxReconnectAttempts: 5
+    });
+
+    // Set up event handlers
+    wscon.on('open', () => {
+        logMessage('Connected to WebSocket server', 'received');
+        updateStatus(true);
+    });
+
+    wscon.on('close', () => {
+        logMessage('Disconnected from WebSocket server', 'error');
+        updateStatus(false);
+    });
+
+    wscon.on('error', (error) => {
+        logMessage('WebSocket error: ' + JSON.stringify(error), 'error');
+    });
+
+    wscon.on('reconnecting', (data) => {
+        logMessage(`Reconnecting... (attempt ${data.attempt})`, 'received');
+    });
+
+    wscon.on('message', (data) => {
+        logMessage('Received: ' + JSON.stringify(data), 'received');
+    });
+
+    wscon.on('subscribed', (data) => {
+        logMessage(`Subscribed to topic: ${data.topic}`, 'received');
+    });
+
+    wscon.on('unsubscribed', (data) => {
+        logMessage(`Unsubscribed from topic: ${data.topic}`, 'received');
+    });
+
+    wscon.on('published', (data) => {
+        logMessage(`Published to ${data.topic}: ${JSON.stringify(data.data)}`, 'sent');
+    });
+}
 
 const statusEl = document.getElementById('status');
 const connectBtn = document.getElementById('connectBtn');
@@ -39,36 +262,15 @@ function logMessage(message, type = 'received') {
 }
 
 function connect() {
-    try {
-        ws = new WebSocket('wss://localhost:8080/ws?token=mysecrettoken');
-
-        ws.onopen = function (event) {
-            logMessage('Connected to WebSocket server', 'received');
-            updateStatus(true);
-        };
-
-        ws.onmessage = function (event) {
-            logMessage('Received: ' + event.data, 'received');
-        };
-
-        ws.onclose = function (event) {
-            logMessage('Disconnected from WebSocket server', 'error');
-            updateStatus(false);
-        };
-
-        ws.onerror = function (error) {
-            logMessage('WebSocket error: ' + error, 'error');
-            updateStatus(false);
-        };
-    } catch (error) {
-        logMessage('Connection error: ' + error.message, 'error');
+    if (!wscon) {
+        initializeWebSocket();
     }
+    wscon.connect();
 }
 
 function disconnect() {
-    if (ws) {
-        ws.close();
-        ws = null;
+    if (wscon) {
+        wscon.disconnect();
     }
 }
 
@@ -78,10 +280,8 @@ function subscribe() {
         alert('Please enter a topic');
         return;
     }
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const message = `subscribe:${topic}`;
-        ws.send(message);
-        logMessage('Sent: ' + message, 'sent');
+    if (wscon) {
+        wscon.subscribe(topic);
     }
 }
 
@@ -91,10 +291,8 @@ function unsubscribe() {
         alert('Please enter a topic');
         return;
     }
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const message = `unsubscribe:${topic}`;
-        ws.send(message);
-        logMessage('Sent: ' + message, 'sent');
+    if (wscon) {
+        wscon.unsubscribe(topic);
     }
 }
 
@@ -105,10 +303,8 @@ function publish() {
         alert('Please enter both topic and message');
         return;
     }
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const fullMessage = `publish:${topic}:${message}`;
-        ws.send(fullMessage);
-        logMessage('Sent: ' + fullMessage, 'sent');
+    if (wscon) {
+        wscon.publish(topic, message);
     }
 }
 
@@ -121,3 +317,8 @@ publishBtn.addEventListener('click', publish);
 
 // Initialize status
 updateStatus(false);
+
+// Example usage in console:
+// wscon.subscribe('news').on('message', (data) => console.log(data));
+// wscon.on('open', () => console.log('Connected!'));
+// wscon.publish('chat', 'Hello World');

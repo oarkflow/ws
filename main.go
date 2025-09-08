@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/sha1"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -36,6 +37,8 @@ type Connection struct {
 	writer        *bufio.Writer
 	subscriptions map[string]bool
 	mu            sync.Mutex
+	writeChan     chan []byte
+	closeChan     chan bool
 }
 
 // Server manages WebSocket connections and topics
@@ -43,6 +46,8 @@ type Server struct {
 	connections map[*Connection]bool
 	topics      map[string]map[*Connection]bool
 	mu          sync.RWMutex
+	connCount   int64
+	maxConns    int64
 }
 
 // NewServer creates a new WebSocket server
@@ -50,6 +55,7 @@ func NewServer() *Server {
 	return &Server{
 		connections: make(map[*Connection]bool),
 		topics:      make(map[string]map[*Connection]bool),
+		maxConns:    100000, // Support up to 100k connections
 	}
 }
 
@@ -114,9 +120,14 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		reader:        bufio.NewReader(conn),
 		writer:        bufio.NewWriter(conn),
 		subscriptions: make(map[string]bool),
+		writeChan:     make(chan []byte, 256), // Buffered channel for high throughput
+		closeChan:     make(chan bool),
 	}
 
 	s.addConnection(wsConn)
+
+	// Start writer goroutine for async writes
+	go wsConn.writerLoop()
 
 	// Handle connection in goroutine
 	go s.handleConnection(wsConn)
@@ -126,7 +137,16 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 func (s *Server) addConnection(conn *Connection) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Check connection limit
+	if s.connCount >= s.maxConns {
+		log.Println("Connection limit reached, rejecting connection")
+		conn.conn.Close()
+		return
+	}
+
 	s.connections[conn] = true
+	s.connCount++
 }
 
 // removeConnection removes a connection from the server
@@ -134,6 +154,7 @@ func (s *Server) removeConnection(conn *Connection) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.connections, conn)
+	s.connCount--
 	for topic, conns := range s.topics {
 		delete(conns, conn)
 		if len(conns) == 0 {
@@ -176,8 +197,9 @@ func (s *Server) publish(topic string, message []byte) {
 	conns := s.topics[topic]
 	s.mu.RUnlock()
 
+	// Send to all subscribers asynchronously
 	for conn := range conns {
-		go conn.writeMessage(TextMessage, message)
+		conn.writeAsync(message)
 	}
 }
 
@@ -185,6 +207,13 @@ func (s *Server) publish(topic string, message []byte) {
 func (s *Server) handleConnection(conn *Connection) {
 	defer func() {
 		conn.conn.Close()
+		// Signal writer to stop
+		close(conn.closeChan)
+		// Send empty message to unblock writer
+		select {
+		case conn.writeChan <- []byte{}:
+		default:
+		}
 		s.removeConnection(conn)
 	}()
 
@@ -209,9 +238,33 @@ func (s *Server) handleConnection(conn *Connection) {
 
 // handleMessage handles incoming messages
 func (s *Server) handleMessage(conn *Connection, payload []byte) {
-	// For simplicity, assume JSON messages
-	// In real implementation, parse JSON
 	message := string(payload)
+
+	// Try to parse as JSON first
+	if strings.HasPrefix(message, "{") {
+		var msg Message
+		if err := json.Unmarshal(payload, &msg); err == nil {
+			switch msg.Event {
+			case "subscribe":
+				s.subscribe(conn, msg.Topic)
+				response := Message{Event: "subscribed", Topic: msg.Topic}
+				if responseBytes, err := json.Marshal(response); err == nil {
+					conn.writeMessage(TextMessage, responseBytes)
+				}
+			case "unsubscribe":
+				s.unsubscribe(conn, msg.Topic)
+				response := Message{Event: "unsubscribed", Topic: msg.Topic}
+				if responseBytes, err := json.Marshal(response); err == nil {
+					conn.writeMessage(TextMessage, responseBytes)
+				}
+			case "publish":
+				s.publish(msg.Topic, payload)
+			}
+			return
+		}
+	}
+
+	// Fallback to simple text protocol
 	if strings.HasPrefix(message, "subscribe:") {
 		topic := strings.TrimPrefix(message, "subscribe:")
 		s.subscribe(conn, topic)
@@ -325,6 +378,30 @@ func (c *Connection) writeMessage(opcode byte, payload []byte) error {
 		return err
 	}
 	return c.writer.Flush()
+}
+
+// writerLoop handles async message writing
+func (c *Connection) writerLoop() {
+	for {
+		select {
+		case data := <-c.writeChan:
+			if len(data) == 0 {
+				return // Empty message signals close
+			}
+			c.writeMessage(TextMessage, data)
+		case <-c.closeChan:
+			return
+		}
+	}
+}
+
+// writeAsync writes a message asynchronously
+func (c *Connection) writeAsync(data []byte) {
+	select {
+	case c.writeChan <- data:
+	default:
+		// Channel full, drop message to prevent blocking
+	}
 }
 
 func main() {
