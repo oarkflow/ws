@@ -105,9 +105,21 @@ func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 
 	var signalingMsg ws.SignalingMessage
 	if data, ok := msg.Data.(map[string]interface{}); ok {
-		signalingMsg.Type = data["type"].(string)
-		signalingMsg.ID = data["id"].(string)
-		signalingMsg.Payload = data["payload"]
+		if data["type"] != nil {
+			signalingMsg.Type = data["type"].(string)
+		} else {
+			signalingMsg.Type = msgTypeToString(msg.T)
+		}
+		if data["id"] != nil {
+			signalingMsg.ID = data["id"].(string)
+		} else {
+			signalingMsg.ID = msg.ID
+		}
+		if data["payload"] != nil {
+			signalingMsg.Payload = data["payload"]
+		} else {
+			signalingMsg.Payload = data
+		}
 	} else {
 		// Handle direct message format
 		signalingMsg.Type = msgTypeToString(msg.T)

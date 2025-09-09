@@ -97,9 +97,66 @@ class WebRTCCallClient {
 
             this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-            // Setup local video
+            // Connect to signaling server
+            await this.connectToSignalingServer();
+
+            // Authenticate first
+            this.sendSignalingMessage('auth', {
+                token: authToken
+            });
+
+            // Join room
+            this.roomId = roomId;
+            this.sendSignalingMessage('join', {
+                room: roomId,
+                display_name: displayName,
+                capabilities: {
+                    audio: audioEnabled,
+                    video: videoEnabled
+                }
+            });
+
+            // Switch to call screen
+            document.getElementById('setupScreen').classList.add('hidden');
+            document.getElementById('callScreen').classList.remove('hidden');
+            document.getElementById('currentRoomId').textContent = roomId;
+
+            // Setup local video after screen switch
             const localVideo = document.getElementById('localVideo');
+            if (!localVideo) {
+                console.error('Local video element not found');
+                throw new Error('Local video element not found');
+            }
             localVideo.srcObject = this.localStream;
+            console.log('Local video srcObject set, tracks:', this.localStream.getVideoTracks().length);
+
+            // Add event listeners for debugging
+            localVideo.addEventListener('loadedmetadata', () => {
+                console.log('Local video metadata loaded');
+            });
+
+            localVideo.addEventListener('canplay', () => {
+                console.log('Local video can play');
+            });
+
+            localVideo.addEventListener('play', () => {
+                console.log('Local video started playing');
+            });
+
+            localVideo.addEventListener('error', (e) => {
+                console.error('Local video error:', e);
+            });
+
+            // Ensure video plays after screen switch (handle autoplay restrictions)
+            localVideo.play().catch(error => {
+                console.warn('Local video autoplay failed:', error);
+                // Try again after a short delay
+                setTimeout(() => {
+                    localVideo.play().catch(e => console.error('Local video play failed:', e));
+                }, 100);
+            });            // Ensure video is visible
+            localVideo.style.display = 'block';
+            localVideo.style.visibility = 'visible';
 
             // Connect to signaling server
             await this.connectToSignalingServer();
@@ -124,6 +181,15 @@ class WebRTCCallClient {
             document.getElementById('setupScreen').classList.add('hidden');
             document.getElementById('callScreen').classList.remove('hidden');
             document.getElementById('currentRoomId').textContent = roomId;
+
+            // Ensure video plays after screen switch (handle autoplay restrictions)
+            localVideo.play().catch(error => {
+                console.warn('Local video autoplay failed:', error);
+                // Try again after a short delay
+                setTimeout(() => {
+                    localVideo.play().catch(e => console.error('Local video play failed:', e));
+                }, 100);
+            });
 
             this.showToast('Joined call successfully!', 'success');
 
@@ -590,7 +656,9 @@ class WebRTCCallClient {
 
         // Update UI
         const muteBtn = document.getElementById('muteBtn');
+        if (!muteBtn) return;
         const icon = muteBtn.querySelector('i');
+        if (!icon) return;
 
         if (this.isMuted) {
             muteBtn.classList.add('bg-red-600');
@@ -624,7 +692,9 @@ class WebRTCCallClient {
 
         // Update UI
         const videoBtn = document.getElementById('videoBtn');
+        if (!videoBtn) return;
         const icon = videoBtn.querySelector('i');
+        if (!icon) return;
 
         if (!this.isVideoEnabled) {
             videoBtn.classList.add('bg-red-600');
@@ -731,7 +801,9 @@ class WebRTCCallClient {
 
     updateRecordingUI() {
         const recordBtn = document.getElementById('recordBtn');
+        if (!recordBtn) return;
         const icon = recordBtn.querySelector('i');
+        if (!icon) return;
 
         if (this.isRecording) {
             recordBtn.classList.add('bg-red-600');
