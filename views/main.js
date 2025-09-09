@@ -1,5 +1,5 @@
 import { WebSocketConnection } from './websocket.js';
-import { formatFileSize, logMessage, logFileMessage, showTypingIndicator, updateMessageStats } from './utils.js';
+import { formatFileSize, logMessage, logFileMessage, showTypingIndicator, updateMessageStats, showToast } from './utils.js';
 import {
     updateStatus,
     updateConnectionCount,
@@ -58,50 +58,129 @@ function initializeWebSocket() {
     // Set up event handlers
     wscon.on('open', () => {
         console.log('WebSocket connection opened successfully');
-        logMessage('Connected to WebSocket server', 'system');
+        showToast('Connected to WebSocket server', 'success');
         updateStatus(true);
         // Don't request user list here - wait for welcome message
     });
 
     wscon.on('close', () => {
-        logMessage('Disconnected from WebSocket server', 'error');
+        showToast('Disconnected from WebSocket server', 'warning');
         updateStatus(false);
     });
 
     wscon.on('error', (error) => {
-        logMessage('WebSocket error: ' + JSON.stringify(error), 'error');
+        // Format error message properly
+        let errorMessage = 'WebSocket connection error';
+        if (error && typeof error === 'object' && error.message) {
+            errorMessage = `WebSocket error: ${error.message}`;
+        } else if (typeof error === 'string') {
+            errorMessage = `WebSocket error: ${error}`;
+        }
+        showToast(errorMessage, 'error');
     });
 
     wscon.on('reconnecting', (data) => {
-        logMessage(`Reconnecting... (attempt ${data.attempt})`, 'system');
+        showToast(`Reconnecting... (attempt ${data.attempt})`, 'warning');
+        // Update status to show reconnecting state
+        updateStatus(false);
     });
 
     wscon.on('message', (data) => {
-        // Only log non-system messages to avoid cluttering the log
-        const systemEvents = ['pong', 'heartbeat', 'ack', 'typing', 'file_received'];
-        if (!systemEvents.includes(data.event)) {
-            logMessage('Received: ' + JSON.stringify(data), 'received');
+        // Only log non-system messages with actual content to avoid cluttering the log
+        // Skip messages that have specific handlers (broadcast, direct, etc.)
+        const systemEvents = ['pong', 'heartbeat', 'ack', 'typing', 'file_received', 'broadcast', 'direct', 'published'];
+        if (!systemEvents.includes(data.event) && !systemEvents.includes(data.t)) {
+            // Only log messages that have actual meaningful content
+            let shouldLog = false;
+            let messageContent = '';
+            let senderInfo = '';
+
+            if (data.data && typeof data.data === 'object' && data.data.message) {
+                shouldLog = true;
+                messageContent = data.data.message;
+                if (data.from) {
+                    senderInfo = data.from;
+                }
+            } else if (data.data && typeof data.data === 'string' && data.data.trim()) {
+                shouldLog = true;
+                messageContent = data.data;
+                if (data.from) {
+                    senderInfo = data.from;
+                }
+            } else if (data.message && data.message.trim()) {
+                shouldLog = true;
+                messageContent = data.message;
+                if (data.from) {
+                    senderInfo = data.from;
+                }
+            }
+
+            // Only log if we have actual content and it's not just a generic system message
+            if (shouldLog && messageContent.trim() && messageContent !== 'Message received') {
+                // Filter out connection-related system messages
+                const systemMessages = [
+                    'Connected to WebSocket server',
+                    'Disconnected from WebSocket server',
+                    'Connection established',
+                    'Connection lost',
+                    'Reconnecting',
+                    'Reconnected'
+                ];
+
+                if (!systemMessages.some(sysMsg => messageContent.includes(sysMsg))) {
+                    const displayName = senderInfo || 'Unknown';
+                    logMessage(`${displayName}: ${messageContent}`, 'received');
+                }
+            }
         }
     });
 
     wscon.on('subscribed', (data) => {
-        logMessage(`✅ Subscribed to topic: ${data.topic}`, 'system');
         updateSubscriptionsList();
         updateMessageStats('topics');
     });
 
     wscon.on('unsubscribed', (data) => {
-        logMessage(`❌ Unsubscribed from topic: ${data.topic}`, 'system');
         updateSubscriptionsList();
     });
 
     wscon.on('published', (data) => {
+        // Only log published messages that have actual content
         if (data.topic && data.topic !== 'general') {
-            const message = data.data && data.data.message ? data.data.message : JSON.stringify(data.data);
-            logMessage(`📢 [${data.topic}] ${message}`, 'received');
+            const message = data.data && data.data.message ? data.data.message : (data.data && typeof data.data === 'string' ? data.data : '');
+            if (message && message.trim()) {
+                // Filter out connection-related system messages
+                const systemMessages = [
+                    'Connected to WebSocket server',
+                    'Disconnected from WebSocket server',
+                    'Connection established',
+                    'Connection lost',
+                    'Reconnecting',
+                    'Reconnected'
+                ];
+
+                if (!systemMessages.some(sysMsg => message.includes(sysMsg))) {
+                    const sender = data.from || 'System';
+                    logMessage(`${sender} [${data.topic}]: ${message}`, 'received');
+                }
+            }
         } else {
-            const message = data.data && data.data.message ? data.data.message : JSON.stringify(data.data);
-            logMessage(`Published to ${data.topic}: ${message}`, 'sent');
+            const message = data.data && data.data.message ? data.data.message : (data.data && typeof data.data === 'string' ? data.data : '');
+            if (message && message.trim()) {
+                // Filter out connection-related system messages
+                const systemMessages = [
+                    'Connected to WebSocket server',
+                    'Disconnected from WebSocket server',
+                    'Connection established',
+                    'Connection lost',
+                    'Reconnecting',
+                    'Reconnected'
+                ];
+
+                if (!systemMessages.some(sysMsg => message.includes(sysMsg))) {
+                    logMessage(`Published to ${data.topic}: ${message}`, 'sent');
+                }
+            }
         }
     });
 
@@ -122,26 +201,63 @@ function initializeWebSocket() {
     });
 
     wscon.on('broadcast', (data) => {
+        let messageText = '';
+
         if (data.data && typeof data.data === 'object' && data.data.message) {
-            logMessage(`📢 ${data.data.message}`, 'received');
-        } else {
-            logMessage(`📢 Broadcast received`, 'received');
+            messageText = data.data.message;
+        } else if (data.data && typeof data.data === 'string') {
+            messageText = data.data;
+        } else if (data.message) {
+            messageText = data.message;
+        }
+
+        // Filter out connection-related system messages
+        const systemMessages = [
+            'Connected to WebSocket server',
+            'Disconnected from WebSocket server',
+            'Connection established',
+            'Connection lost',
+            'Reconnecting',
+            'Reconnected'
+        ];
+
+        if (messageText && messageText.trim() && !systemMessages.some(sysMsg => messageText.includes(sysMsg))) {
+            const sender = data.from || 'System';
+            logMessage(`${sender}: ${messageText}`, 'received');
         }
     });
 
     wscon.on('test_broadcast_response', (data) => {
-        logMessage(`🧪 Test broadcast response`, 'received');
+        // Only log test responses that have actual content
+        if (data && (data.message || (data.data && data.data.message))) {
+            const message = data.message || data.data.message;
+            if (message && message.trim()) {
+                // Filter out connection-related system messages
+                const systemMessages = [
+                    'Connected to WebSocket server',
+                    'Disconnected from WebSocket server',
+                    'Connection established',
+                    'Connection lost',
+                    'Reconnecting',
+                    'Reconnected'
+                ];
+
+                if (!systemMessages.some(sysMsg => message.includes(sysMsg))) {
+                    logMessage(`🧪 Test broadcast response: ${message}`, 'received');
+                }
+            }
+        }
     });
 
     wscon.on('system', (data) => {
         console.log('System message received:', data);
         if (data.data && data.data.type === 'welcome') {
             // Handle welcome message
-            if (data.data.id) {
+            if (data.data.id && wscon) {
                 wscon.userId = data.data.id;
                 console.log('Set wscon.userId to:', wscon.userId);
             }
-            if (data.data.alias) {
+            if (data.data.alias && wscon) {
                 wscon.userAlias = data.data.alias;
                 console.log('Set wscon.userAlias to:', wscon.userAlias);
             }
@@ -149,15 +265,12 @@ function initializeWebSocket() {
             // Store current user information for proper "(Me)" display
             setCurrentUserInfo(data.data.id, data.data.alias);
 
-            logMessage(`👋 Welcome! Connected as ${data.data.id}`, 'system');
-
             // Request user list after welcome message is processed
             setTimeout(() => {
                 console.log('Requesting user list after welcome message');
                 refreshUserList();
             }, 100);
         } else if (data.data && data.data.type === 'alias_change') {
-            logMessage(`✨ ${data.data.message}`, 'system');
             // Update current user info when alias changes
             if (window.currentUserInfo && data.data.newAlias) {
                 window.currentUserInfo.alias = data.data.newAlias;
@@ -165,19 +278,15 @@ function initializeWebSocket() {
             // Refresh user list after alias change
             setTimeout(() => refreshUserList(), 500);
         } else if (data.data && data.data.type === 'user_connected') {
-            logMessage(`👋 ${data.data.message}`, 'system');
             // Refresh user list when a user connects
             setTimeout(() => refreshUserList(), 500);
         } else if (data.data && data.data.type === 'user_disconnected') {
-            logMessage(`👋 ${data.data.message}`, 'system');
             // Refresh user list when a user disconnects
             setTimeout(() => refreshUserList(), 500);
-        } else if (data.data && data.data.type === 'announcement') {
-            logMessage(`📢 ${data.data.message}`, 'system');
-        } else if (data.data && data.data.message) {
-            logMessage(`🔧 ${data.data.message}`, 'system');
         } else {
-            logMessage(`🔧 System: ${JSON.stringify(data.data)}`, 'system');
+            // Handle any other system messages that might contain connection notifications
+            // Don't log them to the message log - they're handled by toasts
+            console.log('Unhandled system message:', data);
         }
     });
 
@@ -250,7 +359,32 @@ function initializeWebSocket() {
     wscon.on('message', (data) => {
         if (data.offline && data.timestamp) {
             const offlineTime = new Date(data.timestamp * 1000);
-            logMessage(`📬 [Offline] ${JSON.stringify(data)} (sent: ${offlineTime.toLocaleString()})`, 'received');
+            let messageText = '';
+            let sender = data.from || 'Unknown';
+
+            if (data.data && typeof data.data === 'object' && data.data.message) {
+                messageText = data.data.message;
+            } else if (data.data && typeof data.data === 'string') {
+                messageText = data.data;
+            } else if (data.message) {
+                messageText = data.message;
+            }
+
+            if (messageText && messageText.trim()) {
+                // Filter out connection-related system messages
+                const systemMessages = [
+                    'Connected to WebSocket server',
+                    'Disconnected from WebSocket server',
+                    'Connection established',
+                    'Connection lost',
+                    'Reconnecting',
+                    'Reconnected'
+                ];
+
+                if (!systemMessages.some(sysMsg => messageText.includes(sysMsg))) {
+                    logMessage(`📬 [Offline] ${sender}: ${messageText} (sent: ${offlineTime.toLocaleString()})`, 'received');
+                }
+            }
         }
     });
 
@@ -263,19 +397,34 @@ function initializeWebSocket() {
     });
 
     wscon.on('direct', (data) => {
+        let messageText = '';
+
         if (data.from && data.data && data.data.message) {
-            logMessage(`💬 [DM from ${data.from}] ${data.data.message}`, 'received');
-        } else if (data.from) {
-            logMessage(`💬 [DM from ${data.from}] ${JSON.stringify(data.data)}`, 'received');
-        } else {
-            logMessage(`💬 [DM] ${JSON.stringify(data)}`, 'received');
+            messageText = data.data.message;
+        } else if (data.from && data.data && typeof data.data === 'string') {
+            messageText = data.data;
+        } else if (data.from && data.message) {
+            messageText = data.message;
+        }
+
+        // Filter out connection-related system messages
+        const systemMessages = [
+            'Connected to WebSocket server',
+            'Disconnected from WebSocket server',
+            'Connection established',
+            'Connection lost',
+            'Reconnecting',
+            'Reconnected'
+        ];
+
+        if (messageText && messageText.trim() && !systemMessages.some(sysMsg => messageText.includes(sysMsg))) {
+            logMessage(`${data.from}: ${messageText}`, 'received');
         }
     });
 
     wscon.on('direct_sent', (data) => {
         const recipientElement = document.querySelector(`[data-user-id="${data.recipientId}"]`);
         const name = recipientElement ? recipientElement.textContent : data.recipientId;
-        logMessage(`💬 DM sent to ${name}: ${data.data.message}`, 'sent');
     });
 
     // Actually connect to the WebSocket server
@@ -297,7 +446,6 @@ function subscribeToTopic() {
 function refreshUserList() {
     if (wscon && wscon.ws.readyState === WebSocket.OPEN) {
         wscon.ws.send(JSON.stringify({ t: 14 })); // MsgUserList = 14
-        logMessage('Requested user list from server', 'system');
     } else {
         logMessage('Cannot refresh user list: not connected', 'error');
     }
@@ -325,22 +473,31 @@ function sendMessage() {
     }
 
     if (wscon) {
+        // Log the sent message locally
+        let recipientInfo = '';
         if (type === 'direct') {
             const recipientId = recipientSelect.value;
             if (!recipientId) {
                 alert('Please select a recipient');
                 return;
             }
+            const recipientElement = document.querySelector(`[data-user-id="${recipientId}"]`);
+            const name = recipientElement ? recipientElement.textContent : recipientId;
+            recipientInfo = ` to ${name}`;
             wscon.sendDirectMessage(recipientId, { message: message });
+            logMessage(`You${recipientInfo}: ${message}`, 'sent');
         } else if (type === 'topic') {
             const topic = topicSelect.value;
             if (!topic) {
                 alert('Please select a topic');
                 return;
             }
+            recipientInfo = ` to topic ${topic}`;
             wscon.publish(topic, { message: message });
+            logMessage(`You${recipientInfo}: ${message}`, 'sent');
         } else {
             wscon.publish('general', { message: message });
+            logMessage(`You (broadcast): ${message}`, 'sent');
         }
         messageInput.value = '';
     }
@@ -400,7 +557,6 @@ function testBroadcast() {
             }
         });
         wscon.ws.send(message);
-        logMessage('Sent broadcast test', 'sent');
     }
 }
 
@@ -455,7 +611,6 @@ fileType.addEventListener('change', toggleFileRecipientSelect);
 pingBtn.addEventListener('click', () => {
     if (wscon) {
         wscon.ws.send(JSON.stringify({ t: 6, data: { timestamp: Date.now() } }));
-        logMessage('Sent ping to server', 'system');
     }
 });
 userListBtn.addEventListener('click', refreshUserList);

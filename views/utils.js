@@ -1,6 +1,82 @@
 // Make logContainer globally accessible
 const logContainer = document.getElementById('logContainer');
 
+// Toast notification system
+let toastContainer = null;
+
+function createToastContainer() {
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.className = 'fixed top-4 right-4 z-50 space-y-2';
+        document.body.appendChild(toastContainer);
+    }
+    return toastContainer;
+}
+
+export function showToast(message, type = 'info', duration = 3000) {
+    const container = createToastContainer();
+
+    const toast = document.createElement('div');
+    toast.className = `p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full max-w-sm`;
+
+    let bgColor = 'bg-blue-500';
+    let textColor = 'text-white';
+    let icon = 'info';
+
+    switch (type) {
+        case 'success':
+            bgColor = 'bg-green-500';
+            icon = 'check-circle';
+            break;
+        case 'error':
+            bgColor = 'bg-red-500';
+            icon = 'alert-circle';
+            break;
+        case 'warning':
+            bgColor = 'bg-yellow-500';
+            textColor = 'text-gray-900';
+            icon = 'alert-triangle';
+            break;
+        default:
+            bgColor = 'bg-blue-500';
+            icon = 'info';
+    }
+
+    toast.className += ` ${bgColor} ${textColor}`;
+
+    toast.innerHTML = `
+        <div class="flex items-center space-x-3">
+            <i data-lucide="${icon}" class="w-5 h-5 flex-shrink-0"></i>
+            <span class="text-sm font-medium">${message}</span>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Trigger animation
+    setTimeout(() => {
+        toast.classList.remove('translate-x-full');
+        toast.classList.add('translate-x-0');
+    }, 10);
+
+    // Auto remove after duration
+    setTimeout(() => {
+        toast.classList.remove('translate-x-0');
+        toast.classList.add('translate-x-full');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }, duration);
+
+    // Re-initialize Lucide icons
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+}
+
 // Stats tracking
 let messageStats = {
     sent: 0,
@@ -17,44 +93,38 @@ export function formatFileSize(bytes) {
 }
 
 export function logMessage(message, type = 'received') {
-    const div = document.createElement('div');
-    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in flex items-start space-x-3';
+    // Filter out system messages to keep the log clean
+    if (type === 'system') {
+        return;
+    }
 
-    const iconDiv = document.createElement('div');
-    iconDiv.className = 'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center';
+    const div = document.createElement('div');
+    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white';
 
     const messageDiv = document.createElement('div');
     messageDiv.className = 'flex-1';
 
     if (type === 'sent') {
-        div.classList.add('bg-blue-50', 'border-l-4', 'border-blue-400');
-        iconDiv.className += ' bg-blue-100';
-        iconDiv.innerHTML = '<i data-lucide="arrow-up" class="w-3 h-3 text-blue-600"></i>';
-        messageDiv.innerHTML = `<div class="text-blue-800 font-medium">You sent:</div><div class="text-blue-700 mt-1">${message}</div>`;
+        div.classList.add('border-l-4', 'border-blue-400');
+        messageDiv.innerHTML = `
+            <div class="text-blue-800 font-medium text-sm">${message}</div>
+            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+        `;
         updateMessageStats('sent');
     } else if (type === 'error') {
-        div.classList.add('bg-red-50', 'border-l-4', 'border-red-400');
-        iconDiv.className += ' bg-red-100';
-        iconDiv.innerHTML = '<i data-lucide="alert-circle" class="w-3 h-3 text-red-600"></i>';
-        messageDiv.innerHTML = `<div class="text-red-800 font-medium">Error:</div><div class="text-red-700 mt-1">${message}</div>`;
-    } else if (type === 'system') {
-        div.classList.add('bg-slate-50', 'border-l-4', 'border-slate-400');
-        iconDiv.className += ' bg-slate-100';
-        iconDiv.innerHTML = '<i data-lucide="info" class="w-3 h-3 text-slate-600"></i>';
-        messageDiv.innerHTML = `<div class="text-slate-800 font-medium">System:</div><div class="text-slate-700 mt-1">${message}</div>`;
+        div.classList.add('border-l-4', 'border-red-400');
+        messageDiv.innerHTML = `
+            <div class="text-red-800 font-medium text-sm">${message}</div>
+            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+        `;
     } else {
-        div.classList.add('bg-green-50', 'border-l-4', 'border-green-400');
-        iconDiv.className += ' bg-green-100';
-        iconDiv.innerHTML = '<i data-lucide="arrow-down" class="w-3 h-3 text-green-600"></i>';
-        messageDiv.innerHTML = `<div class="text-green-800 font-medium">Received:</div><div class="text-green-700 mt-1">${message}</div>`;
+        div.classList.add('border-l-4', 'border-green-400');
+        messageDiv.innerHTML = `
+            <div class="text-green-800 text-sm">${message}</div>
+            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+        `;
     }
 
-    const timeDiv = document.createElement('div');
-    timeDiv.className = 'text-xs text-slate-500 mt-2';
-    timeDiv.textContent = new Date().toLocaleTimeString();
-
-    messageDiv.appendChild(timeDiv);
-    div.appendChild(iconDiv);
     div.appendChild(messageDiv);
 
     logContainer.appendChild(div);
@@ -68,30 +138,25 @@ export function logMessage(message, type = 'received') {
 
 export function logFileMessage(message, type = 'received', fileUrl = null, buttonText = 'Download') {
     const div = document.createElement('div');
-    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in flex items-start space-x-3';
+    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white';
 
-    const iconDiv = document.createElement('div');
-    iconDiv.className = 'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center';
-
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'flex-1';
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'flex-1';
 
     if (type === 'sent') {
-        div.classList.add('bg-purple-50', 'border-l-4', 'border-purple-400');
-        iconDiv.className += ' bg-purple-100';
-        iconDiv.innerHTML = '<i data-lucide="upload" class="w-3 h-3 text-purple-600"></i>';
-        contentDiv.innerHTML = `<div class="text-purple-800 font-medium">File sent:</div><div class="text-purple-700 mt-1">${message}</div>`;
+        div.classList.add('border-l-4', 'border-purple-400');
+        messageDiv.innerHTML = `
+            <div class="text-purple-800 font-medium text-sm">${message}</div>
+            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+        `;
         updateMessageStats('files');
     } else {
-        div.classList.add('bg-orange-50', 'border-l-4', 'border-orange-400');
-        iconDiv.className += ' bg-orange-100';
-        iconDiv.innerHTML = '<i data-lucide="download" class="w-3 h-3 text-orange-600"></i>';
-        contentDiv.innerHTML = `<div class="text-orange-800 font-medium">File received:</div><div class="text-orange-700 mt-1">${message}</div>`;
+        div.classList.add('border-l-4', 'border-orange-400');
+        messageDiv.innerHTML = `
+            <div class="text-orange-800 text-sm">${message}</div>
+            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+        `;
     }
-
-    const timeDiv = document.createElement('div');
-    timeDiv.className = 'text-xs text-slate-500 mt-2';
-    timeDiv.textContent = new Date().toLocaleTimeString();
 
     if (fileUrl) {
         const button = document.createElement('button');
@@ -105,12 +170,10 @@ export function logFileMessage(message, type = 'received', fileUrl = null, butto
             a.click();
             document.body.removeChild(a);
         };
-        contentDiv.appendChild(button);
+        messageDiv.appendChild(button);
     }
 
-    contentDiv.appendChild(timeDiv);
-    div.appendChild(iconDiv);
-    div.appendChild(contentDiv);
+    div.appendChild(messageDiv);
 
     logContainer.appendChild(div);
     logContainer.scrollTop = logContainer.scrollHeight;

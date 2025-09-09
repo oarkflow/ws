@@ -121,7 +121,7 @@
         </div>
 
         <!-- Connection Status Card -->
-        <div class="p-6 border-b border-slate-200">
+        <div class="p-2 border-b border-slate-200">
             <div class="bg-slate-50 rounded-xl p-4">
                 <div class="flex items-center justify-between mb-3">
                     <span class="text-sm font-medium text-slate-600">Connection Status</span>
@@ -250,42 +250,36 @@
 
         <!-- Main Dashboard -->
         <div class="p-6 space-y-6">
-            <!-- Quick Stats -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-600">Messages Sent</p>
-                            <p class="text-2xl font-bold text-slate-900" id="messagesSent">0</p>
-                        </div>
-                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <i data-lucide="send" class="w-6 h-6 text-blue-600"></i>
-                        </div>
+            <!-- Message Log -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-slate-800 flex items-center">
+                        <i data-lucide="message-square" class="w-5 h-5 mr-2 text-slate-600"></i>
+                        Message Log
+                    </h3>
+                    <div class="flex items-center space-x-2">
+                        <button id="clearLogBtn" class="px-3 py-1 text-slate-600 hover:text-slate-800 text-sm">
+                            <i data-lucide="trash-2" class="w-4 h-4 inline mr-1"></i>
+                            Clear
+                        </button>
+                        <button id="pingBtn"
+                            class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm font-medium"
+                            disabled>
+                            <i data-lucide="zap" class="w-4 h-4 inline mr-1"></i>
+                            Ping
+                        </button>
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-600">Files Shared</p>
-                            <p class="text-2xl font-bold text-slate-900" id="filesShared">0</p>
-                        </div>
-                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <i data-lucide="file" class="w-6 h-6 text-purple-600"></i>
-                        </div>
-                    </div>
+                <div id="typingIndicator"
+                    class="fade-in px-4 py-3 mb-4 bg-blue-50 text-blue-700 rounded-lg flex items-center hidden">
+                    <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i>
+                    Someone is typing...
                 </div>
 
-                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium text-slate-600">Active Topics</p>
-                            <p class="text-2xl font-bold text-slate-900" id="activeTopics">0</p>
-                        </div>
-                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                            <i data-lucide="hash" class="w-6 h-6 text-green-600"></i>
-                        </div>
-                    </div>
+                <div id="logContainer"
+                    class="h-96 overflow-y-auto custom-scrollbar bg-slate-50 rounded-lg p-4 space-y-3">
+                    <!-- Messages will be populated here -->
                 </div>
             </div>
 
@@ -352,7 +346,7 @@
                         <span class="text-sm font-medium text-slate-700">File Sharing</span>
                         <button id="fileToggle" class="text-brand-600 hover:text-brand-700 text-sm">
                             <i data-lucide="chevron-down" class="w-4 h-4 inline mr-1"></i>
-                            Show Options
+                            <span>Show Options</span>
                         </button>
                     </div>
 
@@ -384,39 +378,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Message Log -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-slate-800 flex items-center">
-                        <i data-lucide="message-square" class="w-5 h-5 mr-2 text-slate-600"></i>
-                        Message Log
-                    </h3>
-                    <div class="flex items-center space-x-2">
-                        <button id="clearLogBtn" class="px-3 py-1 text-slate-600 hover:text-slate-800 text-sm">
-                            <i data-lucide="trash-2" class="w-4 h-4 inline mr-1"></i>
-                            Clear
-                        </button>
-                        <button id="pingBtn"
-                            class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm font-medium"
-                            disabled>
-                            <i data-lucide="zap" class="w-4 h-4 inline mr-1"></i>
-                            Ping
-                        </button>
-                    </div>
-                </div>
-
-                <div id="typingIndicator"
-                    class="fade-in px-4 py-3 mb-4 bg-blue-50 text-blue-700 rounded-lg flex items-center hidden">
-                    <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i>
-                    Someone is typing...
-                </div>
-
-                <div id="logContainer"
-                    class="max-h-96 overflow-y-auto custom-scrollbar bg-slate-50 rounded-lg p-4 space-y-3">
-                    <!-- Messages will be populated here -->
-                </div>
-            </div>
         </div>
     </div>
 
@@ -445,12 +406,38 @@
         document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
 
         // File section toggle
-        document.getElementById('fileToggle').addEventListener('click', function () {
-            const fileSection = document.getElementById('fileSection');
-            const icon = this.querySelector('i');
-            fileSection.classList.toggle('hidden');
-            icon.classList.toggle('rotate-180');
-        });
+        const fileToggleBtn = document.getElementById('fileToggle');
+        if (fileToggleBtn) {
+            fileToggleBtn.addEventListener('click', function () {
+                const fileSection = document.getElementById('fileSection');
+                const icon = this.querySelector('i');
+
+                console.log('File toggle clicked', { fileSection: !!fileSection, icon: !!icon });
+
+                if (fileSection) {
+                    fileSection.classList.toggle('hidden');
+                    console.log('File section toggled, now hidden:', fileSection.classList.contains('hidden'));
+                } else {
+                    console.error('fileSection not found');
+                }
+
+                if (icon) {
+                    icon.classList.toggle('rotate-180');
+                    console.log('Icon rotated');
+                } else {
+                    console.error('Icon not found in fileToggle button');
+                }
+
+                // Update button text
+                const isHidden = fileSection && fileSection.classList.contains('hidden');
+                const textSpan = this.querySelector('span');
+                if (textSpan) {
+                    textSpan.textContent = isHidden ? 'Show Options' : 'Hide Options';
+                }
+            });
+        } else {
+            console.error('fileToggle button not found');
+        }
 
         // Message type buttons
         document.querySelectorAll('.message-type-btn').forEach(btn => {
