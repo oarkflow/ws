@@ -24,6 +24,7 @@ type Connection struct {
 	subscriptions map[string]bool
 	mu            sync.Mutex
 	writeChan     chan []byte
+	binaryChan    chan []byte
 	closeChan     chan bool
 }
 
@@ -133,6 +134,8 @@ func (c *Connection) writerLoop() {
 				return // Empty message signals close
 			}
 			c.writeMessage(TextMessage, data)
+		case binary := <-c.binaryChan:
+			c.writeMessage(BinaryMessage, binary)
 		case <-c.closeChan:
 			return
 		}
@@ -143,6 +146,15 @@ func (c *Connection) writerLoop() {
 func (c *Connection) writeAsync(data []byte) {
 	select {
 	case c.writeChan <- data:
+	default:
+		// Channel full, drop message to prevent blocking
+	}
+}
+
+// writeBinaryAsync writes binary data asynchronously
+func (c *Connection) writeBinaryAsync(data []byte) {
+	select {
+	case c.binaryChan <- data:
 	default:
 		// Channel full, drop message to prevent blocking
 	}

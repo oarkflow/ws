@@ -86,6 +86,7 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		writer:        bufio.NewWriter(conn),
 		subscriptions: make(map[string]bool),
 		writeChan:     make(chan []byte, 256), // Buffered channel for high throughput
+		binaryChan:    make(chan []byte, 256), // Buffered channel for binary data
 		closeChan:     make(chan bool),
 	}
 
@@ -218,6 +219,9 @@ func (s *Server) handleConnection(socket *Socket) {
 		case TextMessage:
 			// Handle custom events
 			s.handleMessage(socket, payload)
+		case BinaryMessage:
+			// Handle binary file data
+			s.handleBinaryMessage(socket, payload)
 		case CloseMessage:
 			return
 		case PingMessage:
@@ -374,6 +378,21 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 		}
 		socket.SendMessage(pongMsg)
 
+	case MsgFile:
+		// Set pending file metadata for next binary message
+		socket.pendingFile = &msg
+
+	case MsgTyping:
+		// Broadcast typing status to all other clients
+		typingMsg := Message{
+			T: MsgTyping,
+			Data: map[string]interface{}{
+				"typing": msg.Data,
+				"from":   socket.ID,
+			},
+		}
+		s.hub.BroadcastMessageExcept(typingMsg, socket)
+
 	default:
 		// For unknown types, send ack
 		ackMsg := Message{
@@ -413,4 +432,27 @@ func (s *Server) handleTextMessage(socket *Socket, message string) {
 			s.hub.BroadcastMessageExcept(broadcastMsg, socket)
 		}
 	}
+}
+
+// handleBinaryMessage handles incoming binary data (files)
+func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
+	if socket.pendingFile == nil {
+		// No pending file metadata, ignore or log
+		log.Printf("Received binary data without metadata from %s", socket.ID)
+		return
+	}
+
+	// Use the pending metadata to route the file
+	if socket.pendingFile.To != "" {
+		// Send to specific socket
+		s.hub.EmitBinary(socket.pendingFile.To, payload)
+		log.Printf("Sent binary file to %s from %s", socket.pendingFile.To, socket.ID)
+	} else {
+		// Broadcast to all except sender
+		s.hub.BroadcastBinary(payload, socket)
+		log.Printf("Broadcasted binary file from %s", socket.ID)
+	}
+
+	// Clear pending file
+	socket.pendingFile = nil
 }

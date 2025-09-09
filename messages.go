@@ -15,6 +15,8 @@ const (
 	MsgPong        = 7
 	MsgError       = 8
 	MsgAck         = 9
+	MsgFile        = 10
+	MsgTyping      = 11
 )
 
 // Message represents the unified message format
@@ -46,6 +48,10 @@ func stringToMsgType(event string) int {
 		return MsgPong
 	case "error":
 		return MsgError
+	case "file":
+		return MsgFile
+	case "typing":
+		return MsgTyping
 	default:
 		return MsgSystem // Default to system message
 	}
@@ -72,6 +78,10 @@ func msgTypeToString(msgType int) string {
 		return "error"
 	case MsgAck:
 		return "ack"
+	case MsgFile:
+		return "file"
+	case MsgTyping:
+		return "typing"
 	default:
 		return "unknown"
 	}

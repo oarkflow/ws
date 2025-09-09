@@ -10,12 +10,13 @@ import (
 
 // Socket wraps a WebSocket connection with additional functionality
 type Socket struct {
-	ID         string
-	conn       *Connection
-	hub        *Hub
-	properties map[string]interface{}
-	isBanned   bool
-	mu         sync.RWMutex
+	ID          string
+	conn        *Connection
+	hub         *Hub
+	properties  map[string]interface{}
+	isBanned    bool
+	pendingFile *Message
+	mu          sync.RWMutex
 }
 
 // Hub manages all WebSocket connections and event handlers
@@ -164,6 +165,25 @@ func (h *Hub) BroadcastMessageExcept(msg Message, excludeSocket *Socket) {
 	}
 }
 
+// BroadcastBinary sends binary data to all connected sockets except the sender
+func (h *Hub) BroadcastBinary(data []byte, excludeSocket *Socket) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	sentCount := 0
+	for _, socket := range h.sockets {
+		if !socket.IsBanned() && socket != excludeSocket {
+			socket.conn.writeBinaryAsync(data)
+			sentCount++
+		}
+	}
+	if excludeSocket != nil {
+		log.Printf("Broadcasting binary data to %d clients (excluding sender)", sentCount)
+	} else {
+		log.Printf("Broadcasting binary data to %d clients", sentCount)
+	}
+}
+
 // Notify sends a message to specific sockets
 func (h *Hub) Notify(socketIDs []string, event string, data interface{}) {
 	h.mu.RLock()
@@ -190,6 +210,16 @@ func (h *Hub) Emit(socketID string, event string, data interface{}) {
 
 	if socket, exists := h.sockets[socketID]; exists {
 		socket.Send(event, data)
+	}
+}
+
+// EmitBinary sends binary data to a single socket
+func (h *Hub) EmitBinary(socketID string, data []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	if socket, exists := h.sockets[socketID]; exists && !socket.IsBanned() {
+		socket.conn.writeBinaryAsync(data)
 	}
 }
 

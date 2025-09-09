@@ -26,17 +26,28 @@
                 <label for="messageInput">Message:</label>
                 <input type="text" id="messageInput" placeholder="Enter message">
             </div>
+            <div class="input-group">
+                <label for="fileInput">File:</label>
+                <input type="file" id="fileInput">
+            </div>
+            <div class="input-group">
+                <label for="recipientInput">Recipient ID (optional):</label>
+                <input type="text" id="recipientInput" placeholder="Leave empty for broadcast">
+            </div>
             <div class="buttons">
                 <button id="subscribeBtn" disabled>Subscribe</button>
                 <button id="unsubscribeBtn" disabled>Unsubscribe</button>
                 <button id="publishBtn" disabled>Publish</button>
                 <button id="pingBtn" disabled>Ping Server</button>
                 <button id="broadcastBtn" disabled>Test Broadcast</button>
+                <button id="sendFileBtn" disabled>Send File</button>
             </div>
         </div>
 
         <div class="log">
             <h3>Message Log</h3>
+            <div id="typingIndicator" class="indicator" style="display: none;">✍️ Someone is typing...</div>
+            <div id="uploadingIndicator" class="indicator" style="display: none;">📤 Uploading file...</div>
             <div id="logContainer"></div>
         </div>
     </div>
