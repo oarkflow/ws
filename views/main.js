@@ -109,6 +109,8 @@ function initializeWebSocket() {
             wscon.userAlias = data.alias;
         }
         logMessage(`👋 Welcome! Connected as ${data.id}`, 'received');
+        // Refresh user list after welcome to get updated list
+        setTimeout(() => refreshUserList(), 500);
     });
 
     wscon.on('pong', (data) => {
@@ -144,6 +146,14 @@ function initializeWebSocket() {
             if (data.data.type === 'alias_change') {
                 logMessage(`👤 ${data.data.message}`, 'received');
                 // Refresh user list after alias change
+                setTimeout(() => refreshUserList(), 500);
+            } else if (data.data.type === 'user_connected') {
+                logMessage(`👋 ${data.data.message}`, 'received');
+                // Refresh user list when a user connects
+                setTimeout(() => refreshUserList(), 500);
+            } else if (data.data.type === 'user_disconnected') {
+                logMessage(`👋 ${data.data.message}`, 'received');
+                // Refresh user list when a user disconnects
                 setTimeout(() => refreshUserList(), 500);
             } else if (data.data.type === 'announcement') {
                 logMessage(`📣 ${data.data.message}`, 'received');

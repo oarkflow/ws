@@ -39,6 +39,11 @@ export function updateConnectionCount(count) {
 
 export function updateUserList(users) {
     userCount.textContent = users.length;
+
+    // Preserve current selections
+    const currentRecipientSelection = recipientSelect.value;
+    const currentFileRecipientSelection = fileRecipientSelect.value;
+
     userList.innerHTML = '';
     recipientSelect.innerHTML = '<option value="">Select recipient...</option>';
     fileRecipientSelect.innerHTML = '<option value="">Select recipient...</option>';
@@ -68,6 +73,23 @@ export function updateUserList(users) {
         fileOption.textContent = displayName;
         fileRecipientSelect.appendChild(fileOption);
     });
+
+    // Restore selections if the users still exist
+    if (currentRecipientSelection) {
+        recipientSelect.value = currentRecipientSelection;
+        // Also update the visual selection in the user list
+        const selectedUserDiv = document.querySelector(`[data-user-id="${currentRecipientSelection}"]`);
+        if (selectedUserDiv) {
+            document.querySelectorAll('.user-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            selectedUserDiv.classList.add('selected');
+        }
+    }
+
+    if (currentFileRecipientSelection) {
+        fileRecipientSelect.value = currentFileRecipientSelection;
+    }
 }
 
 export function selectUser(userId) {
@@ -82,7 +104,10 @@ export function selectUser(userId) {
         selectedUser.classList.add('selected');
         recipientSelect.value = userId;
         messageType.value = 'direct';
-        toggleRecipientSelect();
+        // Show recipient select without clearing the value
+        recipientSelect.style.display = 'inline-block';
+        topicSelect.style.display = 'none';
+        topicSelect.value = '';
     }
 }
 
@@ -90,13 +115,13 @@ export function toggleRecipientSelect() {
     if (messageType.value === 'direct') {
         recipientSelect.style.display = 'inline-block';
         topicSelect.style.display = 'none';
-        recipientSelect.value = '';
+        // Don't clear recipientSelect value here - preserve user selection
         topicSelect.value = '';
     } else if (messageType.value === 'topic') {
         recipientSelect.style.display = 'none';
         topicSelect.style.display = 'inline-block';
         recipientSelect.value = '';
-        topicSelect.value = '';
+        // Don't clear topicSelect value here - preserve topic selection
     } else {
         recipientSelect.style.display = 'none';
         topicSelect.style.display = 'none';
@@ -112,13 +137,13 @@ export function toggleFileRecipientSelect() {
     if (fileType.value === 'direct') {
         fileRecipientSelect.style.display = 'inline-block';
         fileTopicSelect.style.display = 'none';
-        fileRecipientSelect.value = '';
+        // Don't clear fileRecipientSelect value here - preserve user selection
         fileTopicSelect.value = '';
     } else if (fileType.value === 'topic') {
         fileRecipientSelect.style.display = 'none';
         fileTopicSelect.style.display = 'inline-block';
         fileRecipientSelect.value = '';
-        fileTopicSelect.value = '';
+        // Don't clear fileTopicSelect value here - preserve topic selection
     } else {
         fileRecipientSelect.style.display = 'none';
         fileTopicSelect.style.display = 'none';
