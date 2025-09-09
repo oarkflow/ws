@@ -19,8 +19,9 @@ type Server struct {
 
 // NewServer creates a new WebSocket server with Hub
 func NewServer() *Server {
+	storage := NewInMemoryMessageStorage(24 * time.Hour)
 	return &Server{
-		hub: NewHub(),
+		hub: NewHub(storage),
 	}
 }
 
@@ -101,6 +102,11 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Trigger connect event
 	s.hub.triggerHandlers("connect", socket)
+
+	// Deliver any offline messages
+	if err := s.hub.DeliverOfflineMessages(socket); err != nil {
+		log.Printf("Error delivering offline messages to %s: %v", socket.ID, err)
+	}
 
 	// Handle connection in goroutine
 	go s.handleConnection(socket)
@@ -388,10 +394,75 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 			T: MsgTyping,
 			Data: map[string]interface{}{
 				"typing": msg.Data,
-				"from":   socket.ID,
+				"from":   socket.GetAlias(),
 			},
 		}
 		s.hub.BroadcastMessageExcept(typingMsg, socket)
+
+	case MsgDirect:
+		// Send direct message to specific user
+		if msg.To != "" {
+			directMsg := Message{
+				T:    MsgDirect,
+				Data: msg.Data,
+				From: socket.GetAlias(),
+				ID:   generateMessageID(),
+			}
+			targetSocket := s.hub.GetSocket(msg.To)
+			if targetSocket != nil {
+				targetSocket.SendMessage(directMsg)
+			}
+		}
+
+	case MsgThread:
+		// Handle threaded message (reply)
+		if msg.ThreadID != "" {
+			threadMsg := Message{
+				T:        MsgThread,
+				Data:     msg.Data,
+				From:     socket.GetAlias(),
+				ID:       generateMessageID(),
+				ThreadID: msg.ThreadID,
+				ReplyTo:  msg.ReplyTo,
+			}
+			if msg.To != "" {
+				// Threaded message to specific user
+				s.hub.Emit(msg.To, "thread", threadMsg.Data)
+			} else {
+				// Broadcast threaded message
+				s.hub.BroadcastMessageExcept(threadMsg, socket)
+			}
+		}
+
+	case MsgUserList:
+		// Send list of active users
+		userList := s.hub.GetUserList()
+		userListMsg := Message{
+			T: MsgUserList,
+			Data: map[string]interface{}{
+				"users": userList,
+			},
+		}
+		socket.SendMessage(userListMsg)
+
+	case MsgSetAlias:
+		// Set user alias
+		if aliasData, ok := msg.Data.(map[string]interface{}); ok {
+			if alias, ok := aliasData["alias"].(string); ok && alias != "" {
+				socket.SetAlias(alias)
+				// Broadcast alias change to all users
+				aliasMsg := Message{
+					T: MsgSystem,
+					Data: map[string]interface{}{
+						"message": fmt.Sprintf("%s is now known as %s", socket.ID[:8], alias),
+						"type":    "alias_change",
+						"userId":  socket.ID,
+						"alias":   alias,
+					},
+				}
+				s.hub.BroadcastMessage(aliasMsg)
+			}
+		}
 
 	default:
 		// For unknown types, send ack

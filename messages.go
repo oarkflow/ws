@@ -17,16 +17,23 @@ const (
 	MsgAck         = 9
 	MsgFile        = 10
 	MsgTyping      = 11
+	MsgDirect      = 12
+	MsgThread      = 13
+	MsgUserList    = 14
+	MsgSetAlias    = 15
 )
 
 // Message represents the unified message format
 type Message struct {
-	T     int         `json:"t"`               // Message type
-	Topic string      `json:"topic,omitempty"` // Topic for broadcasts
-	To    string      `json:"to,omitempty"`    // Recipient for private messages
-	Data  interface{} `json:"data,omitempty"`  // Message data
-	Code  int         `json:"code,omitempty"`  // Error/system code
-	ID    string      `json:"id,omitempty"`    // Message ID for tracking
+	T        int         `json:"t"`                  // Message type
+	Topic    string      `json:"topic,omitempty"`    // Topic for broadcasts
+	To       string      `json:"to,omitempty"`       // Recipient for private messages
+	Data     interface{} `json:"data,omitempty"`     // Message data
+	Code     int         `json:"code,omitempty"`     // Error/system code
+	ID       string      `json:"id,omitempty"`       // Message ID for tracking
+	ThreadID string      `json:"threadId,omitempty"` // Thread ID for threaded conversations
+	ReplyTo  string      `json:"replyTo,omitempty"`  // Message ID being replied to
+	From     string      `json:"from,omitempty"`     // Sender alias/username
 }
 
 // stringToMsgType converts string event names to numeric types
@@ -52,6 +59,14 @@ func stringToMsgType(event string) int {
 		return MsgFile
 	case "typing":
 		return MsgTyping
+	case "direct":
+		return MsgDirect
+	case "thread":
+		return MsgThread
+	case "user_list":
+		return MsgUserList
+	case "set_alias":
+		return MsgSetAlias
 	default:
 		return MsgSystem // Default to system message
 	}
@@ -82,6 +97,14 @@ func msgTypeToString(msgType int) string {
 		return "file"
 	case MsgTyping:
 		return "typing"
+	case MsgDirect:
+		return "direct"
+	case MsgThread:
+		return "thread"
+	case MsgUserList:
+		return "user_list"
+	case MsgSetAlias:
+		return "set_alias"
 	default:
 		return "unknown"
 	}

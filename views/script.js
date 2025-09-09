@@ -116,43 +116,96 @@ class WebSocketConnection {
         return this;
     }
 
-    sendFile(file, recipientId = null) {
-        if (!file) return this;
+    sendDirectMessage(recipientId, data) {
+        if (!recipientId || !data) return this;
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            // Send metadata first
-            const metadata = {
-                t: 10, // MsgFile
-                data: {
-                    filename: file.name,
-                    size: file.size,
-                    type: file.type
-                }
-            };
-            if (recipientId) {
-                metadata.to = recipientId;
-            }
-            this.ws.send(JSON.stringify(metadata));
-
-            // Then send the binary data
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                this.ws.send(event.target.result);
-                this.emit('file_sent', { filename: file.name, size: file.size, recipientId });
-            };
-            reader.readAsArrayBuffer(file);
+            const message = JSON.stringify({
+                t: 12, // MsgDirect
+                to: recipientId,
+                data: data
+            });
+            this.ws.send(message);
+            this.emit('direct_sent', { recipientId, data });
         }
 
         return this;
     }
 
-    sendTyping(isTyping = true) {
+    sendThreadMessage(threadId, replyTo, data, recipientId = null) {
+        if (!threadId || !data) return this;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = JSON.stringify({
+                t: 13, // MsgThread
+                threadId: threadId,
+                replyTo: replyTo,
+                to: recipientId,
+                data: data
+            });
+            this.ws.send(message);
+            this.emit('thread_sent', { threadId, replyTo, recipientId, data });
+        }
+
+        return this;
+    }
+
+    requestUserList() {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = JSON.stringify({
+                t: 14 // MsgUserList
+            });
+            this.ws.send(message);
+        }
+        return this;
+    }
+
+    setAlias(alias) {
+        if (!alias) return this;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = JSON.stringify({
+                t: 15, // MsgSetAlias
+                data: { alias: alias }
+            });
+            this.ws.send(message);
+            this.emit('alias_set', { alias });
+        }
+
+        return this;
+    }
+
+    sendTyping(isTyping) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             const message = JSON.stringify({
                 t: 11, // MsgTyping
                 data: { typing: isTyping }
             });
             this.ws.send(message);
+        }
+        return this;
+    }
+
+    sendFile(file, recipientId = null) {
+        if (!file) return this;
+
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const arrayBuffer = event.target.result;
+                const message = {
+                    t: 10, // MsgFile
+                    filename: file.name,
+                    size: file.size,
+                    data: arrayBuffer
+                };
+                if (recipientId) {
+                    message.to = recipientId;
+                }
+                this.ws.send(JSON.stringify(message));
+                this.emit('file_sent', { filename: file.name, size: file.size, recipientId });
+            };
+            reader.readAsArrayBuffer(file);
         }
         return this;
     }
@@ -244,7 +297,11 @@ class WebSocketConnection {
             8: 'error',
             9: 'ack',
             10: 'file',
-            11: 'typing'
+            11: 'typing',
+            12: 'direct',
+            13: 'thread',
+            14: 'user_list',
+            15: 'set_alias'
         };
 
         return {
@@ -253,7 +310,10 @@ class WebSocketConnection {
             to: compactMsg.to,
             data: compactMsg.data,
             code: compactMsg.code,
-            id: compactMsg.id
+            id: compactMsg.id,
+            threadId: compactMsg.threadId,
+            replyTo: compactMsg.replyTo,
+            from: compactMsg.from
         };
     }
 
@@ -271,7 +331,7 @@ let wscon = null;
 
 // Test interface functions
 function initializeWebSocket() {
-    wscon = new WebSocketConnection('wss://localhost:8080/ws', {
+    wscon = new WebSocketConnection('ws://localhost:8080/ws', {
         token: 'mysecrettoken',
         autoReconnect: true,
         maxReconnectAttempts: 5
@@ -344,11 +404,21 @@ function initializeWebSocket() {
         logMessage(`🧪 Test broadcast response`, 'received');
     });
 
-    wscon.on('announcement', (data) => {
-        if (data.data && typeof data.data === 'object' && data.data.message) {
-            logMessage(`📣 ${data.data.message}`, 'received');
+    wscon.on('system', (data) => {
+        if (data.data && typeof data.data === 'object') {
+            if (data.data.type === 'alias_change') {
+                logMessage(`👤 ${data.data.message}`, 'received');
+                // Refresh user list after alias change
+                setTimeout(() => refreshUserList(), 500);
+            } else if (data.data.type === 'announcement') {
+                logMessage(`📣 ${data.data.message}`, 'received');
+            } else if (data.data.message) {
+                logMessage(`� ${data.data.message}`, 'received');
+            } else {
+                logMessage(`🔧 System: ${JSON.stringify(data.data)}`, 'received');
+            }
         } else {
-            logMessage(`📣 Announcement`, 'received');
+            logMessage(`🔧 System: ${JSON.stringify(data)}`, 'received');
         }
     });
 
@@ -370,48 +440,89 @@ function initializeWebSocket() {
             showTypingIndicator();
         }
     });
+
+    // Handle offline messages (messages received after reconnection)
+    wscon.on('message', (data) => {
+        if (data.offline && data.timestamp) {
+            const offlineTime = new Date(data.timestamp * 1000);
+            logMessage(`📬 [Offline] ${JSON.stringify(data)} (sent: ${offlineTime.toLocaleString()})`, 'received');
+        }
+    });
+
+    wscon.on('user_list', (data) => {
+        if (data.data && data.data.users) {
+            updateUserList(data.data.users);
+        } else if (data.users) {
+            updateUserList(data.users);
+        }
+    });
+
+    wscon.on('direct', (data) => {
+        if (data.from && data.data && data.data.message) {
+            logMessage(`💬 [DM from ${data.from}] ${data.data.message}`, 'received');
+        } else if (data.from) {
+            logMessage(`💬 [DM from ${data.from}] ${JSON.stringify(data.data)}`, 'received');
+        } else {
+            logMessage(`💬 [DM] ${JSON.stringify(data)}`, 'received');
+        }
+    });
+
+    wscon.on('direct_sent', (data) => {
+        const recipientName = document.querySelector(`[data-user-id="${data.recipientId}"]`);
+        const name = recipientName ? recipientName.textContent : data.recipientId;
+        logMessage(`💬 DM sent to ${name}: ${data.data.message}`, 'sent');
+    });
+
+    // Actually connect to the WebSocket server
+    wscon.connect();
 }
 
 const statusEl = document.getElementById('status');
 const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
+const aliasInput = document.getElementById('aliasInput');
+const setAliasBtn = document.getElementById('setAliasBtn');
+const messageInput = document.getElementById('messageInput');
+const messageType = document.getElementById('messageType');
+const recipientSelect = document.getElementById('recipientSelect');
+const sendBtn = document.getElementById('sendBtn');
+const pingBtn = document.getElementById('pingBtn');
+const userListBtn = document.getElementById('userListBtn');
+const userCount = document.getElementById('userCount');
+const userList = document.getElementById('userList');
+const logContainer = document.getElementById('logContainer');
+
+// Additional elements for legacy functionality (may not exist)
 const subscribeBtn = document.getElementById('subscribeBtn');
 const unsubscribeBtn = document.getElementById('unsubscribeBtn');
 const publishBtn = document.getElementById('publishBtn');
-const pingBtn = document.getElementById('pingBtn');
 const broadcastBtn = document.getElementById('broadcastBtn');
 const sendFileBtn = document.getElementById('sendFileBtn');
 const topicInput = document.getElementById('topicInput');
-const messageInput = document.getElementById('messageInput');
 const fileInput = document.getElementById('fileInput');
 const recipientInput = document.getElementById('recipientInput');
-const logContainer = document.getElementById('logContainer');
 
-function updateStatus(connected) {
-    if (connected) {
-        statusEl.textContent = 'Connected';
-        statusEl.className = 'connected';
-        connectBtn.disabled = true;
-        disconnectBtn.disabled = false;
-        subscribeBtn.disabled = false;
-        unsubscribeBtn.disabled = false;
-        publishBtn.disabled = false;
-        pingBtn.disabled = false;
-        broadcastBtn.disabled = false;
-        sendFileBtn.disabled = false;
-    } else {
-        statusEl.textContent = 'Disconnected';
-        statusEl.className = 'disconnected';
-        connectBtn.disabled = false;
-        disconnectBtn.disabled = true;
-        subscribeBtn.disabled = true;
-        unsubscribeBtn.disabled = true;
-        publishBtn.disabled = true;
-        pingBtn.disabled = true;
-        broadcastBtn.disabled = true;
-        sendFileBtn.disabled = true;
+// Typing detection
+let typingTimer;
+const typingDelay = 1000; // 1 second delay
+
+messageInput.addEventListener('input', function () {
+    if (wscon && wscon.isConnected()) {
+        wscon.sendTyping(true);
+
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => {
+            wscon.sendTyping(false);
+        }, typingDelay);
     }
-}
+});
+
+messageInput.addEventListener('blur', function () {
+    if (wscon && wscon.isConnected()) {
+        wscon.sendTyping(false);
+        clearTimeout(typingTimer);
+    }
+});
 
 function logMessage(message, type = 'received') {
     const div = document.createElement('div');
@@ -478,16 +589,137 @@ function showUploadingIndicator() {
     }
 }
 
+function updateStatus(connected) {
+    if (connected) {
+        statusEl.textContent = 'Connected';
+        statusEl.className = 'connected';
+        connectBtn.disabled = true;
+        disconnectBtn.disabled = false;
+        setAliasBtn.disabled = false;
+        sendBtn.disabled = false;
+        pingBtn.disabled = false;
+        userListBtn.disabled = false;
+    } else {
+        statusEl.textContent = 'Disconnected';
+        statusEl.className = 'disconnected';
+        connectBtn.disabled = false;
+        disconnectBtn.disabled = true;
+        setAliasBtn.disabled = true;
+        sendBtn.disabled = true;
+        pingBtn.disabled = true;
+        userListBtn.disabled = true;
+        userCount.textContent = '0';
+        userList.innerHTML = '';
+        recipientSelect.innerHTML = '<option value="">Select recipient...</option>';
+    }
+}
+
+function updateUserList(users) {
+    userCount.textContent = users.length;
+    userList.innerHTML = '';
+    recipientSelect.innerHTML = '<option value="">Select recipient...</option>';
+
+    users.forEach(user => {
+        // Add to user list
+        const userDiv = document.createElement('div');
+        userDiv.className = 'user-item';
+        userDiv.textContent = user.alias;
+        userDiv.dataset.userId = user.id;
+        userDiv.onclick = () => selectUser(user.id);
+        userList.appendChild(userDiv);
+
+        // Add to recipient select
+        const option = document.createElement('option');
+        option.value = user.id;
+        option.textContent = user.alias;
+        recipientSelect.appendChild(option);
+    });
+}
+
+function selectUser(userId) {
+    // Remove selected class from all users
+    document.querySelectorAll('.user-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+
+    // Add selected class to clicked user
+    const selectedUser = document.querySelector(`[data-user-id="${userId}"]`);
+    if (selectedUser) {
+        selectedUser.classList.add('selected');
+        recipientSelect.value = userId;
+        messageType.value = 'direct';
+        toggleRecipientSelect();
+    }
+}
+
+function toggleRecipientSelect() {
+    if (messageType.value === 'direct') {
+        recipientSelect.style.display = 'inline-block';
+    } else {
+        recipientSelect.style.display = 'none';
+        recipientSelect.value = '';
+        document.querySelectorAll('.user-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+    }
+}
+
+function refreshUserList() {
+    if (wscon && wscon.ws.readyState === WebSocket.OPEN) {
+        wscon.ws.send(JSON.stringify({ t: 14 })); // MsgUserList = 14
+        logMessage('Requested user list from server', 'sent');
+    } else {
+        logMessage('Cannot refresh user list: not connected', 'error');
+    }
+}
+
+function setAlias() {
+    const alias = aliasInput.value.trim();
+    if (!alias) {
+        alert('Please enter an alias');
+        return;
+    }
+    if (wscon) {
+        wscon.setAlias(alias);
+        aliasInput.value = '';
+    }
+}
+
+function sendMessage() {
+    const message = messageInput.value.trim();
+    const type = messageType.value;
+
+    if (!message) {
+        alert('Please enter a message');
+        return;
+    }
+
+    if (wscon) {
+        if (type === 'direct') {
+            const recipientId = recipientSelect.value;
+            if (!recipientId) {
+                alert('Please select a recipient');
+                return;
+            }
+            wscon.sendDirectMessage(recipientId, { message: message });
+        } else {
+            wscon.publish('general', { message: message });
+        }
+        messageInput.value = '';
+    }
+}
+
 function connect() {
     if (!wscon) {
         initializeWebSocket();
     }
-    wscon.connect();
 }
 
 function disconnect() {
     if (wscon) {
         wscon.disconnect();
+        wscon = null;
+        updateStatus(false);
     }
 }
 
@@ -571,55 +803,40 @@ function sendFile() {
     }
 }
 
-function sendFile() {
-    const file = fileInput.files[0];
-    const recipientId = recipientInput.value.trim() || null;
-    if (!file) {
-        alert('Please select a file');
-        return;
-    }
-    if (wscon) {
-        showUploadingIndicator();
-        wscon.sendFile(file, recipientId);
-        // Clear the file input
-        fileInput.value = '';
-        recipientInput.value = '';
-    }
-}
-
 // Event listeners
 connectBtn.addEventListener('click', connect);
 disconnectBtn.addEventListener('click', disconnect);
-subscribeBtn.addEventListener('click', subscribe);
-unsubscribeBtn.addEventListener('click', unsubscribe);
-publishBtn.addEventListener('click', publish);
-pingBtn.addEventListener('click', ping);
-broadcastBtn.addEventListener('click', testBroadcast);
-sendFileBtn.addEventListener('click', sendFile);
+setAliasBtn.addEventListener('click', setAlias);
+messageType.addEventListener('change', toggleRecipientSelect);
+sendBtn.addEventListener('click', sendMessage);
+pingBtn.addEventListener('click', () => {
+    if (wscon) {
+        wscon.ws.send(JSON.stringify({ t: 6, data: { timestamp: Date.now() } }));
+        logMessage('Sent ping to server', 'sent');
+    }
+});
+userListBtn.addEventListener('click', refreshUserList);
 
-// Typing indicators
-let typingTimer;
-messageInput.addEventListener('input', () => {
-    if (wscon && wscon.isConnected()) {
-        wscon.sendTyping(true);
-        clearTimeout(typingTimer);
-        typingTimer = setTimeout(() => {
-            wscon.sendTyping(false);
-        }, 1000);
+// Legacy event listeners (only if elements exist)
+if (subscribeBtn) subscribeBtn.addEventListener('click', subscribe);
+if (unsubscribeBtn) unsubscribeBtn.addEventListener('click', unsubscribe);
+if (publishBtn) publishBtn.addEventListener('click', publish);
+if (broadcastBtn) broadcastBtn.addEventListener('click', testBroadcast);
+if (sendFileBtn) sendFileBtn.addEventListener('click', sendFile);
+
+// Enter key handler for message input
+messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        sendMessage();
     }
 });
 
-messageInput.addEventListener('blur', () => {
-    if (wscon && wscon.isConnected()) {
-        wscon.sendTyping(false);
-        clearTimeout(typingTimer);
+// Enter key handler for alias input
+aliasInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        setAlias();
     }
 });
 
 // Initialize status
 updateStatus(false);
-
-// Example usage in console:
-// wscon.subscribe('news').on('message', (data) => console.log(data));
-// wscon.on('open', () => console.log('Connected!'));
-// wscon.publish('chat', 'Hello World');

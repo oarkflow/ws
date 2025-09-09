@@ -64,6 +64,19 @@ func main() {
 		}
 	}()
 
+	// Cleanup expired offline messages every hour
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := hub.storage.CleanupExpiredMessages(); err != nil {
+				log.Printf("Error cleaning up expired messages: %v", err)
+			} else {
+				log.Println("Cleaned up expired offline messages")
+			}
+		}
+	}()
+
 	// Add a simple broadcast test endpoint
 	http.HandleFunc("/broadcast", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
@@ -92,6 +105,6 @@ func main() {
 	http.HandleFunc("/ws", server.HandleWebSocket)
 	http.Handle("/", http.FileServer(http.Dir("./views")))
 
-	log.Println("Secure WebSocket server with Hub starting on :8080")
-	log.Fatal(http.ListenAndServeTLS(":8080", "cert.pem", "key.pem", nil))
+	log.Println("WebSocket server with Hub starting on :8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }

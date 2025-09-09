@@ -15,40 +15,44 @@
             <span id="status">Disconnected</span>
             <button id="connectBtn">Connect</button>
             <button id="disconnectBtn" disabled>Disconnect</button>
-        </div>
-
-        <div class="controls">
-            <div class="input-group">
-                <label for="topicInput">Topic:</label>
-                <input type="text" id="topicInput" placeholder="Enter topic name">
-            </div>
-            <div class="input-group">
-                <label for="messageInput">Message:</label>
-                <input type="text" id="messageInput" placeholder="Enter message">
-            </div>
-            <div class="input-group">
-                <label for="fileInput">File:</label>
-                <input type="file" id="fileInput">
-            </div>
-            <div class="input-group">
-                <label for="recipientInput">Recipient ID (optional):</label>
-                <input type="text" id="recipientInput" placeholder="Leave empty for broadcast">
-            </div>
-            <div class="buttons">
-                <button id="subscribeBtn" disabled>Subscribe</button>
-                <button id="unsubscribeBtn" disabled>Unsubscribe</button>
-                <button id="publishBtn" disabled>Publish</button>
-                <button id="pingBtn" disabled>Ping Server</button>
-                <button id="broadcastBtn" disabled>Test Broadcast</button>
-                <button id="sendFileBtn" disabled>Send File</button>
+            <div class="user-info">
+                <input type="text" id="aliasInput" placeholder="Set your alias" maxlength="20">
+                <button id="setAliasBtn" disabled>Set Alias</button>
             </div>
         </div>
 
-        <div class="log">
-            <h3>Message Log</h3>
-            <div id="typingIndicator" class="indicator" style="display: none;">✍️ Someone is typing...</div>
-            <div id="uploadingIndicator" class="indicator" style="display: none;">📤 Uploading file...</div>
-            <div id="logContainer"></div>
+        <div class="main-content">
+            <div class="users-panel">
+                <h3>Active Users (<span id="userCount">0</span>)</h3>
+                <div id="userList"></div>
+            </div>
+
+            <div class="chat-panel">
+                <div class="chat-controls">
+                    <div class="input-group">
+                        <label for="messageInput">Message:</label>
+                        <input type="text" id="messageInput" placeholder="Type a message">
+                        <select id="messageType">
+                            <option value="broadcast">Broadcast</option>
+                            <option value="direct">Direct Message</option>
+                        </select>
+                        <select id="recipientSelect" style="display: none;">
+                            <option value="">Select recipient...</option>
+                        </select>
+                    </div>
+                    <div class="buttons">
+                        <button id="sendBtn" disabled>Send</button>
+                        <button id="pingBtn" disabled>Ping Server</button>
+                        <button id="userListBtn" disabled>Refresh Users</button>
+                    </div>
+                </div>
+
+                <div class="log">
+                    <h3>Message Log</h3>
+                    <div id="typingIndicator" class="indicator" style="display: none;">Someone is typing...</div>
+                    <div id="logContainer"></div>
+                </div>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

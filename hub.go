@@ -16,6 +16,7 @@ type Socket struct {
 	properties  map[string]interface{}
 	isBanned    bool
 	pendingFile *Message
+	alias       string
 	mu          sync.RWMutex
 }
 
@@ -27,18 +28,23 @@ type Hub struct {
 	mu             sync.RWMutex
 	connCount      int64
 	maxConns       int64
+	storage        MessageStorage
 }
 
 // Handler is a function type for event handlers
 type Handler func(socket *Socket)
 
 // NewHub creates a new WebSocket hub
-func NewHub() *Hub {
+func NewHub(storage MessageStorage) *Hub {
+	if storage == nil {
+		storage = NewInMemoryMessageStorage(24 * time.Hour)
+	}
 	return &Hub{
 		sockets:        make(map[string]*Socket),
 		handlers:       make(map[string][]Handler),
 		globalHandlers: make(map[string][]Handler),
 		maxConns:       100000,
+		storage:        storage,
 	}
 }
 
@@ -210,6 +216,15 @@ func (h *Hub) Emit(socketID string, event string, data interface{}) {
 
 	if socket, exists := h.sockets[socketID]; exists {
 		socket.Send(event, data)
+	} else {
+		// Client is offline, store the message
+		msgType := stringToMsgType(event)
+		message := Message{
+			T:    msgType,
+			Data: data,
+			ID:   generateMessageID(),
+		}
+		h.storage.StoreMessage(socketID, message)
 	}
 }
 
@@ -220,6 +235,14 @@ func (h *Hub) EmitBinary(socketID string, data []byte) {
 
 	if socket, exists := h.sockets[socketID]; exists && !socket.IsBanned() {
 		socket.conn.writeBinaryAsync(data)
+	} else {
+		// Client is offline, store the binary message
+		message := Message{
+			T:    MsgFile,
+			Data: data,
+			ID:   generateMessageID(),
+		}
+		h.storage.StoreMessage(socketID, message)
 	}
 }
 
@@ -254,6 +277,40 @@ func (h *Hub) GetSocketsByProperty(key string, value interface{}) []*Socket {
 		}
 	}
 	return matchingSockets
+}
+
+// DeliverOfflineMessages sends stored messages to a newly connected socket
+func (h *Hub) DeliverOfflineMessages(socket *Socket) error {
+	messages, err := h.storage.GetMessages(socket.ID)
+	if err != nil {
+		return err
+	}
+
+	messageIDs := make([]string, 0, len(messages))
+	for _, msg := range messages {
+		if msg.ID != "" {
+			messageIDs = append(messageIDs, msg.ID)
+		}
+
+		// Mark message as offline and add delivery timestamp
+		offlineMsg := msg
+		if offlineMsg.Data == nil {
+			offlineMsg.Data = make(map[string]interface{})
+		}
+		if dataMap, ok := offlineMsg.Data.(map[string]interface{}); ok {
+			dataMap["offline"] = true
+			dataMap["delivered_at"] = time.Now().Unix()
+		}
+
+		socket.SendMessage(offlineMsg)
+	}
+
+	// Delete delivered messages
+	if len(messageIDs) > 0 {
+		return h.storage.DeleteMessages(socket.ID, messageIDs)
+	}
+
+	return nil
 }
 
 // RemoveSocket removes a socket from the hub
@@ -348,6 +405,41 @@ func (s *Socket) GetProperty(key string) interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.properties[key]
+}
+
+// GetAlias returns the socket's alias
+func (s *Socket) GetAlias() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.alias == "" {
+		return s.ID[:8] // Return first 8 chars of ID if no alias
+	}
+	return s.alias
+}
+
+// SetAlias sets the socket's alias
+func (s *Socket) SetAlias(alias string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.alias = alias
+}
+
+// GetUserList returns a list of all connected users with their aliases
+func (h *Hub) GetUserList() []map[string]interface{} {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	users := make([]map[string]interface{}, 0, len(h.sockets))
+	for _, socket := range h.sockets {
+		if !socket.IsBanned() {
+			user := map[string]interface{}{
+				"id":    socket.ID,
+				"alias": socket.GetAlias(),
+			}
+			users = append(users, user)
+		}
+	}
+	return users
 }
 
 // GetID returns the socket ID
