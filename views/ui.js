@@ -1,7 +1,12 @@
 export function updateStatus(connected) {
+    const statusDiv = document.getElementById('status');
+    const statusDot = statusDiv.querySelector('div');
+    const statusText = statusDiv.querySelector('span');
+
     if (connected) {
-        statusEl.textContent = 'Connected';
-        statusEl.className = 'connected';
+        statusDot.className = 'w-2 h-2 bg-green-500 rounded-full pulse-soft';
+        statusText.textContent = 'Connected';
+        statusText.className = 'text-sm font-medium text-green-600';
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         setAliasBtn.disabled = false;
@@ -11,8 +16,9 @@ export function updateStatus(connected) {
         pingBtn.disabled = false;
         userListBtn.disabled = false;
     } else {
-        statusEl.textContent = 'Disconnected';
-        statusEl.className = 'disconnected';
+        statusDot.className = 'w-2 h-2 bg-red-500 rounded-full pulse-soft';
+        statusText.textContent = 'Disconnected';
+        statusText.className = 'text-sm font-medium text-red-600';
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
         setAliasBtn.disabled = true;
@@ -37,6 +43,7 @@ export function updateConnectionCount(count) {
     }
 }
 
+// Function to update the user list display
 export function updateUserList(users) {
     userCount.textContent = users.length;
 
@@ -62,10 +69,16 @@ export function updateUserList(users) {
         console.log(`User ${user.id} (${user.alias}): isCurrentUser = ${isCurrentUser}`);
         const displayName = isCurrentUser ? `${user.alias} (Me)` : user.alias;
 
-        // Add to user list
+        // Add to user list with new Tailwind classes
         const userDiv = document.createElement('div');
-        userDiv.className = 'user-item';
-        userDiv.textContent = displayName;
+        userDiv.className = 'user-item flex items-center justify-between px-3 py-2 bg-white border border-slate-200 rounded-lg cursor-pointer transition-colors hover:bg-slate-50 text-sm';
+        if (isCurrentUser) {
+            userDiv.classList.add('bg-brand-600', 'text-blue-500', 'border-brand-600', 'font-medium');
+        }
+        userDiv.innerHTML = `
+            <span class="truncate">${displayName}</span>
+            <div class="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+        `;
         userDiv.dataset.userId = user.id;
         userDiv.onclick = () => selectUser(user.id);
         userList.appendChild(userDiv);
@@ -90,9 +103,9 @@ export function updateUserList(users) {
         const selectedUserDiv = document.querySelector(`[data-user-id="${currentRecipientSelection}"]`);
         if (selectedUserDiv) {
             document.querySelectorAll('.user-item').forEach(item => {
-                item.classList.remove('selected');
+                item.classList.remove('bg-blue-100', 'border-blue-300', 'text-blue-800');
             });
-            selectedUserDiv.classList.add('selected');
+            selectedUserDiv.classList.add('bg-blue-100', 'border-blue-300', 'text-blue-800');
         }
     }
 
@@ -123,58 +136,72 @@ export function clearCurrentUserInfo() {
 export function selectUser(userId) {
     // Remove selected class from all users
     document.querySelectorAll('.user-item').forEach(item => {
-        item.classList.remove('selected');
+        item.classList.remove('bg-blue-100', 'border-blue-300', 'text-blue-800');
+        item.classList.add('bg-white', 'border-slate-200');
+        if (item.classList.contains('bg-brand-600')) {
+            item.classList.add('text-white');
+        } else {
+            item.classList.add('text-slate-900');
+        }
     });
 
     // Add selected class to clicked user
     const selectedUser = document.querySelector(`[data-user-id="${userId}"]`);
     if (selectedUser) {
-        selectedUser.classList.add('selected');
+        selectedUser.classList.remove('bg-white', 'border-slate-200', 'text-slate-900');
+        selectedUser.classList.add('bg-blue-100', 'border-blue-300', 'text-blue-800');
         recipientSelect.value = userId;
-        messageType.value = 'direct';
+        // Set message type to direct
+        document.querySelector('[data-type="direct"]').click();
         // Show recipient select without clearing the value
-        recipientSelect.style.display = 'inline-block';
-        topicSelect.style.display = 'none';
+        recipientSelect.classList.remove('hidden');
+        topicSelect.classList.add('hidden');
         topicSelect.value = '';
     }
 }
 
 export function toggleRecipientSelect() {
     if (messageType.value === 'direct') {
-        recipientSelect.style.display = 'inline-block';
-        topicSelect.style.display = 'none';
+        recipientSelect.classList.remove('hidden');
+        topicSelect.classList.add('hidden');
         // Don't clear recipientSelect value here - preserve user selection
         topicSelect.value = '';
     } else if (messageType.value === 'topic') {
-        recipientSelect.style.display = 'none';
-        topicSelect.style.display = 'inline-block';
+        recipientSelect.classList.add('hidden');
+        topicSelect.classList.remove('hidden');
         recipientSelect.value = '';
         // Don't clear topicSelect value here - preserve topic selection
     } else {
-        recipientSelect.style.display = 'none';
-        topicSelect.style.display = 'none';
+        recipientSelect.classList.add('hidden');
+        topicSelect.classList.add('hidden');
         recipientSelect.value = '';
         topicSelect.value = '';
         document.querySelectorAll('.user-item').forEach(item => {
-            item.classList.remove('selected');
+            item.classList.remove('bg-blue-100', 'border-blue-300', 'text-blue-800');
+            item.classList.add('bg-white', 'border-slate-200');
+            if (item.classList.contains('bg-brand-600')) {
+                item.classList.add('text-white');
+            } else {
+                item.classList.add('text-slate-900');
+            }
         });
     }
 }
 
 export function toggleFileRecipientSelect() {
     if (fileType.value === 'direct') {
-        fileRecipientSelect.style.display = 'inline-block';
-        fileTopicSelect.style.display = 'none';
+        fileRecipientSelect.classList.remove('hidden');
+        fileTopicSelect.classList.add('hidden');
         // Don't clear fileRecipientSelect value here - preserve user selection
         fileTopicSelect.value = '';
     } else if (fileType.value === 'topic') {
-        fileRecipientSelect.style.display = 'none';
-        fileTopicSelect.style.display = 'inline-block';
+        fileRecipientSelect.classList.add('hidden');
+        fileTopicSelect.classList.remove('hidden');
         fileRecipientSelect.value = '';
         // Don't clear fileTopicSelect value here - preserve topic selection
     } else {
-        fileRecipientSelect.style.display = 'none';
-        fileTopicSelect.style.display = 'none';
+        fileRecipientSelect.classList.add('hidden');
+        fileTopicSelect.classList.add('hidden');
         fileRecipientSelect.value = '';
         fileTopicSelect.value = '';
     }
@@ -184,11 +211,19 @@ export function updateSubscriptionsList() {
     subscriptionsList.innerHTML = '';
     if (window.wscon && window.wscon.subscriptions) {
         window.wscon.subscriptions.forEach(topic => {
-            const div = document.createElement('div');
-            div.className = 'subscription-item';
-            div.innerHTML = `${topic} <button onclick="unsubscribeFromTopic('${topic}')">Unsubscribe</button>`;
-            subscriptionsList.appendChild(div);
+            const badge = document.createElement('span');
+            badge.className = 'inline-flex items-center bg-brand-100 text-brand-700 px-3 py-1 rounded-full text-sm font-medium';
+            badge.innerHTML = `
+                <i data-lucide="hash" class="w-3 h-3 mr-1"></i>
+                ${topic}
+                <button onclick="unsubscribeFromTopic('${topic}')" class="ml-2 text-brand-600 hover:text-brand-800 font-bold">&times;</button>
+            `;
+            subscriptionsList.appendChild(badge);
         });
+    }
+    // Re-initialize Lucide icons for new elements
+    if (window.lucide) {
+        window.lucide.createIcons();
     }
 }
 
@@ -198,6 +233,18 @@ export function unsubscribeFromTopic(topic) {
     }
 }
 
+// Add message type handling
+export function setMessageType(type) {
+    // Update hidden input
+    const messageTypeInput = document.getElementById('messageType');
+    if (messageTypeInput) {
+        messageTypeInput.value = type;
+    }
+
+    // Update UI based on message type
+    toggleRecipientSelect();
+}
+
 // DOM elements
 export const statusEl = document.getElementById('status');
 export const connectBtn = document.getElementById('connectBtn');
@@ -205,7 +252,7 @@ export const disconnectBtn = document.getElementById('disconnectBtn');
 export const aliasInput = document.getElementById('aliasInput');
 export const setAliasBtn = document.getElementById('setAliasBtn');
 export const messageInput = document.getElementById('messageInput');
-export const messageType = document.getElementById('messageType');
+export const messageType = document.getElementById('messageType') || { value: 'broadcast' }; // Fallback for hidden input
 export const recipientSelect = document.getElementById('recipientSelect');
 export const topicSelect = document.getElementById('topicSelect');
 export const sendBtn = document.getElementById('sendBtn');

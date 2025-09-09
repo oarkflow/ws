@@ -4,87 +4,495 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Test Client</title>
+    <title>WebSocket Chat Hub</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-in',
+                        'slide-in': 'slideIn 0.2s ease-out',
+                        'pulse-soft': 'pulseSoft 2s infinite',
+                    },
+                    colors: {
+                        'brand': {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-10px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulseSoft {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .slide-in {
+            animation: slideIn 0.2s ease-out;
+        }
+
+        .pulse-soft {
+            animation: pulseSoft 2s infinite;
+        }
+
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
 </head>
 
-<body>
-    <div class="container">
-        <h1>Custom WebSocket Test Client</h1>
-        <div class="connection-status">
-            <span id="status">Disconnected</span>
-            <button id="connectBtn">Connect</button>
-            <button id="disconnectBtn" disabled>Disconnect</button>
-            <div class="user-info">
-                <input type="text" id="aliasInput" placeholder="Set your alias" maxlength="20">
-                <button id="setAliasBtn" disabled>Set Alias</button>
+<body class="bg-slate-50 min-h-screen font-sans">
+    <!-- Sidebar -->
+    <div id="sidebar"
+        class="fixed left-0 top-0 h-full w-80 bg-white shadow-xl border-r border-slate-200 z-40 transform transition-transform duration-300 ease-in-out">
+        <!-- Sidebar Header -->
+        <div
+            class="flex items-center justify-between p-6 border-b border-slate-200 bg-gradient-to-r from-brand-600 to-brand-700">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
+                    <i data-lucide="message-circle" class="w-6 h-6 text-brand-600"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-white">Chat Hub</h1>
+                    <p class="text-sm text-blue-100">WebSocket Client</p>
+                </div>
+            </div>
+            <button id="sidebarToggle" class="lg:hidden text-white hover:bg-white/10 rounded-lg p-2 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Connection Status Card -->
+        <div class="p-6 border-b border-slate-200">
+            <div class="bg-slate-50 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <span class="text-sm font-medium text-slate-600">Connection Status</span>
+                    <div id="status" class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-red-500 rounded-full pulse-soft"></div>
+                        <span class="text-sm font-medium text-red-600">Disconnected</span>
+                    </div>
+                </div>
+
+                <div class="flex space-x-2">
+                    <button id="connectBtn"
+                        class="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors">
+                        <i data-lucide="wifi" class="w-4 h-4 inline mr-1"></i>
+                        Connect
+                    </button>
+                    <button id="disconnectBtn"
+                        class="flex-1 px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+                        disabled>
+                        <i data-lucide="wifi-off" class="w-4 h-4 inline mr-1"></i>
+                        Disconnect
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="main-content">
-            <div class="users-panel">
-                <h3>Active Users (<span id="userCount">0</span>)</h3>
-                <div id="userList"></div>
+        <!-- User Profile Section -->
+        <div class="p-6 border-b border-slate-200">
+            <div class="flex items-center space-x-3 mb-4">
+                <div
+                    class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <i data-lucide="user" class="w-6 h-6 text-white"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="aliasInput" placeholder="Your alias" maxlength="20"
+                            class="flex-1 px-3 py-1 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                        <button id="setAliasBtn"
+                            class="px-3 py-1 bg-brand-600 text-white text-sm rounded-lg hover:bg-brand-700 transition-colors"
+                            disabled>
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Users -->
+        <div class="flex-1 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-slate-800 flex items-center">
+                    <i data-lucide="users" class="w-5 h-5 mr-2 text-slate-600"></i>
+                    Active Users
+                </h3>
+                <span id="userCount"
+                    class="bg-brand-100 text-brand-700 text-sm font-medium px-2 py-1 rounded-full">0</span>
             </div>
 
-            <div class="chat-panel">
-                <div class="subscriptions-panel">
-                    <h3>Topic Subscriptions</h3>
-                    <div class="subscription-input">
-                        <input type="text" id="topicInput" placeholder="Enter topic name">
-                        <button id="subscribeBtn" disabled>Subscribe</button>
-                    </div>
-                    <div id="subscriptionsList" class="subscriptions-list"></div>
+            <div id="userList" class="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                <!-- Users will be populated here -->
+            </div>
+
+            <button id="userListBtn"
+                class="w-full mt-4 px-3 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+                disabled>
+                <i data-lucide="refresh-cw" class="w-4 h-4 inline mr-1"></i>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Sidebar Footer -->
+        <div class="p-6 border-t border-slate-200 bg-slate-50">
+            <div class="text-xs text-slate-500 text-center">
+                WebSocket Chat Client v2.0
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden hidden"
+        onclick="toggleSidebar()"></div>
+
+    <!-- Main Content -->
+    <div class="lg:ml-80 min-h-screen">
+        <!-- Top Navigation -->
+        <nav class="bg-white shadow-sm border-b border-slate-200 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <button id="mobileMenuBtn" class="lg:hidden text-slate-600 hover:text-slate-800">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
+                    </button>
+                    <h2 class="text-xl font-semibold text-slate-800">Dashboard</h2>
                 </div>
 
-                <div class="chat-controls">
-                    <div class="input-group">
-                        <label for="messageInput">Message:</label>
-                        <input type="text" id="messageInput" placeholder="Type a message">
-                        <select id="messageType">
-                            <option value="broadcast">Broadcast</option>
-                            <option value="direct">Direct Message</option>
-                            <option value="topic">Topic Message</option>
-                        </select>
-                        <select id="recipientSelect" style="display: none;">
-                            <option value="">Select recipient...</option>
-                        </select>
-                        <select id="topicSelect" style="display: none;">
-                            <option value="">Select topic...</option>
-                        </select>
+                <div class="flex items-center space-x-4">
+                    <div class="hidden md:flex items-center space-x-2 text-sm text-slate-600">
+                        <i data-lucide="activity" class="w-4 h-4"></i>
+                        <span>Real-time updates active</span>
                     </div>
-                    <div class="file-upload-group">
-                        <label for="fileInput">File:</label>
-                        <input type="file" id="fileInput">
-                        <select id="fileType">
-                            <option value="broadcast">Broadcast File</option>
-                            <option value="direct">Send to User</option>
-                            <option value="topic">Send to Topic</option>
-                        </select>
-                        <select id="fileRecipientSelect" style="display: none;">
-                            <option value="">Select recipient...</option>
-                        </select>
-                        <select id="fileTopicSelect" style="display: none;">
-                            <option value="">Select topic...</option>
-                        </select>
-                        <button id="sendFileBtn" disabled>Send File</button>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span class="text-sm text-slate-600">Live</span>
                     </div>
-                    <div class="buttons">
-                        <button id="sendBtn" disabled>Send</button>
-                        <button id="pingBtn" disabled>Ping Server</button>
-                        <button id="userListBtn" disabled>Refresh Users</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Dashboard -->
+        <div class="p-6 space-y-6">
+            <!-- Quick Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-600">Messages Sent</p>
+                            <p class="text-2xl font-bold text-slate-900" id="messagesSent">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <i data-lucide="send" class="w-6 h-6 text-blue-600"></i>
+                        </div>
                     </div>
                 </div>
 
-                <div class="log">
-                    <h3>Message Log</h3>
-                    <div id="typingIndicator" class="indicator" style="display: none;">Someone is typing...</div>
-                    <div id="logContainer"></div>
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-600">Files Shared</p>
+                            <p class="text-2xl font-bold text-slate-900" id="filesShared">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i data-lucide="file" class="w-6 h-6 text-purple-600"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-slate-600">Active Topics</p>
+                            <p class="text-2xl font-bold text-slate-900" id="activeTopics">0</p>
+                        </div>
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                            <i data-lucide="hash" class="w-6 h-6 text-green-600"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Topic Subscriptions -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-slate-800 flex items-center">
+                        <i data-lucide="rss" class="w-5 h-5 mr-2 text-slate-600"></i>
+                        Topic Subscriptions
+                    </h3>
+                    <button class="text-brand-600 hover:text-brand-700 text-sm font-medium">
+                        Manage All
+                    </button>
+                </div>
+
+                <div class="flex gap-3 mb-4">
+                    <input type="text" id="topicInput" placeholder="Enter topic name to subscribe"
+                        class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                    <button id="subscribeBtn"
+                        class="px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors"
+                        disabled>
+                        <i data-lucide="plus" class="w-4 h-4 inline mr-1"></i>
+                        Subscribe
+                    </button>
+                </div>
+
+                <div id="subscriptionsList" class="flex flex-wrap gap-3 min-h-[40px]">
+                    <!-- Subscriptions will be populated here -->
+                </div>
+            </div>
+
+            <!-- Message Composer -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-slate-800 flex items-center">
+                        <i data-lucide="edit-3" class="w-5 h-5 mr-2 text-slate-600"></i>
+                        Send Message
+                    </h3>
+                </div>
+
+                <!-- Message Type Selector -->
+                <div class="mb-4">
+                    <div class="flex space-x-2">
+                        <button
+                            class="message-type-btn active px-4 py-2 bg-brand-100 text-brand-700 rounded-lg text-sm font-medium"
+                            data-type="broadcast">
+                            <i data-lucide="globe" class="w-4 h-4 inline mr-1"></i>
+                            Broadcast
+                        </button>
+                        <button
+                            class="message-type-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                            data-type="direct">
+                            <i data-lucide="user" class="w-4 h-4 inline mr-1"></i>
+                            Direct
+                        </button>
+                        <button
+                            class="message-type-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                            data-type="topic">
+                            <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
+                            Topic
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Message Input -->
+                <div class="mb-4">
+                    <div class="flex gap-3">
+                        <input type="text" id="messageInput" placeholder="Type your message..."
+                            class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                        <select id="recipientSelect"
+                            class="hidden px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                            <option value="">Select recipient...</option>
+                        </select>
+                        <select id="topicSelect"
+                            class="hidden px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                            <option value="">Select topic...</option>
+                        </select>
+                        <button id="sendBtn"
+                            class="px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors"
+                            disabled>
+                            <i data-lucide="send" class="w-4 h-4 inline mr-1"></i>
+                            Send
+                        </button>
+                    </div>
+                </div>
+
+                <!-- File Upload -->
+                <div class="border-t border-slate-200 pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-slate-700">File Sharing</span>
+                        <button id="fileToggle" class="text-brand-600 hover:text-brand-700 text-sm">
+                            <i data-lucide="chevron-down" class="w-4 h-4 inline mr-1"></i>
+                            Show Options
+                        </button>
+                    </div>
+
+                    <div id="fileSection" class="hidden space-y-3">
+                        <div class="flex gap-3">
+                            <input type="file" id="fileInput"
+                                class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                            <select id="fileType"
+                                class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                <option value="broadcast">Broadcast File</option>
+                                <option value="direct">Send to User</option>
+                                <option value="topic">Send to Topic</option>
+                            </select>
+                            <select id="fileRecipientSelect"
+                                class="hidden px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                <option value="">Select recipient...</option>
+                            </select>
+                            <select id="fileTopicSelect"
+                                class="hidden px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                <option value="">Select topic...</option>
+                            </select>
+                            <button id="sendFileBtn"
+                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                disabled>
+                                <i data-lucide="upload" class="w-4 h-4 inline mr-1"></i>
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message Log -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-slate-800 flex items-center">
+                        <i data-lucide="message-square" class="w-5 h-5 mr-2 text-slate-600"></i>
+                        Message Log
+                    </h3>
+                    <div class="flex items-center space-x-2">
+                        <button id="clearLogBtn" class="px-3 py-1 text-slate-600 hover:text-slate-800 text-sm">
+                            <i data-lucide="trash-2" class="w-4 h-4 inline mr-1"></i>
+                            Clear
+                        </button>
+                        <button id="pingBtn"
+                            class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 text-sm font-medium"
+                            disabled>
+                            <i data-lucide="zap" class="w-4 h-4 inline mr-1"></i>
+                            Ping
+                        </button>
+                    </div>
+                </div>
+
+                <div id="typingIndicator"
+                    class="fade-in px-4 py-3 mb-4 bg-blue-50 text-blue-700 rounded-lg flex items-center hidden">
+                    <i data-lucide="loader-2" class="w-4 h-4 mr-2 animate-spin"></i>
+                    Someone is typing...
+                </div>
+
+                <div id="logContainer"
+                    class="max-h-96 overflow-y-auto custom-scrollbar bg-slate-50 rounded-lg p-4 space-y-3">
+                    <!-- Messages will be populated here -->
                 </div>
             </div>
         </div>
     </div>
+
     <script type="module" src="main.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Sidebar toggle functionality
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const isOpen = !sidebar.classList.contains('-translate-x-full');
+
+            if (isOpen) {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            } else {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            }
+        }
+
+        // Mobile menu button
+        document.getElementById('mobileMenuBtn').addEventListener('click', toggleSidebar);
+        document.getElementById('sidebarToggle').addEventListener('click', toggleSidebar);
+
+        // File section toggle
+        document.getElementById('fileToggle').addEventListener('click', function () {
+            const fileSection = document.getElementById('fileSection');
+            const icon = this.querySelector('i');
+            fileSection.classList.toggle('hidden');
+            icon.classList.toggle('rotate-180');
+        });
+
+        // Message type buttons
+        document.querySelectorAll('.message-type-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('.message-type-btn').forEach(b => {
+                    b.classList.remove('active', 'bg-brand-100', 'text-brand-700');
+                    b.classList.add('bg-slate-100', 'text-slate-600');
+                });
+                this.classList.add('active', 'bg-brand-100', 'text-brand-700');
+                this.classList.remove('bg-slate-100', 'text-slate-600');
+
+                const messageType = this.dataset.type;
+                document.getElementById('messageType').value = messageType;
+
+                // Update UI based on message type
+                const recipientSelect = document.getElementById('recipientSelect');
+                const topicSelect = document.getElementById('topicSelect');
+
+                if (messageType === 'direct') {
+                    recipientSelect.classList.remove('hidden');
+                    topicSelect.classList.add('hidden');
+                } else if (messageType === 'topic') {
+                    recipientSelect.classList.add('hidden');
+                    topicSelect.classList.remove('hidden');
+                } else {
+                    recipientSelect.classList.add('hidden');
+                    topicSelect.classList.add('hidden');
+                }
+            });
+        });
+
+        // Clear log functionality
+        document.getElementById('clearLogBtn').addEventListener('click', function () {
+            document.getElementById('logContainer').innerHTML = '';
+        });
+    </script>
 </body>
 
 </html>
