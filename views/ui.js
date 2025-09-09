@@ -50,7 +50,16 @@ export function updateUserList(users) {
 
     users.forEach(user => {
         // Check if this is the current user
-        const isCurrentUser = (user.id === window.wscon?.userId) || (user.alias === window.wscon?.userAlias);
+        console.log('Checking user:', user.id, user.alias);
+        console.log('Current user info - ID:', window.currentUserId, 'Alias:', window.currentUserAlias);
+        console.log('wscon user info - ID:', window.wscon?.userId, 'Alias:', window.wscon?.userAlias);
+
+        const isCurrentUser = (user.id === window.currentUserId) ||
+            (user.alias === window.currentUserAlias) ||
+            (user.id === window.wscon?.userId) ||
+            (user.alias === window.wscon?.userAlias);
+
+        console.log(`User ${user.id} (${user.alias}): isCurrentUser = ${isCurrentUser}`);
         const displayName = isCurrentUser ? `${user.alias} (Me)` : user.alias;
 
         // Add to user list
@@ -90,6 +99,25 @@ export function updateUserList(users) {
     if (currentFileRecipientSelection) {
         fileRecipientSelect.value = currentFileRecipientSelection;
     }
+}
+
+// Function to update current user information
+export function setCurrentUserInfo(userId, userAlias) {
+    console.log('Setting current user info:', { userId, userAlias });
+    console.log('wscon.userId:', window.wscon?.userId);
+    console.log('wscon.userAlias:', window.wscon?.userAlias);
+
+    // Store current user information for UI state management
+    window.currentUserId = userId;
+    window.currentUserAlias = userAlias;
+
+    console.log('Current user info set to:', { userId, userAlias });
+}
+
+// Function to clear current user information
+export function clearCurrentUserInfo() {
+    window.currentUserId = null;
+    window.currentUserAlias = null;
 }
 
 export function selectUser(userId) {

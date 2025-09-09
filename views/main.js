@@ -9,6 +9,8 @@ import {
     toggleFileRecipientSelect,
     updateSubscriptionsList,
     unsubscribeFromTopic,
+    setCurrentUserInfo,
+    clearCurrentUserInfo,
     statusEl,
     connectBtn,
     disconnectBtn,
@@ -54,10 +56,10 @@ function initializeWebSocket() {
 
     // Set up event handlers
     wscon.on('open', () => {
+        console.log('WebSocket connection opened successfully');
         logMessage('Connected to WebSocket server', 'received');
         updateStatus(true);
-        // Request initial user list
-        setTimeout(() => refreshUserList(), 500);
+        // Don't request user list here - wait for welcome message
     });
 
     wscon.on('close', () => {
@@ -101,18 +103,6 @@ function initializeWebSocket() {
         }
     });
 
-    wscon.on('welcome', (data) => {
-        if (data.id) {
-            wscon.userId = data.id;
-        }
-        if (data.alias) {
-            wscon.userAlias = data.alias;
-        }
-        logMessage(`👋 Welcome! Connected as ${data.id}`, 'received');
-        // Refresh user list after welcome to get updated list
-        setTimeout(() => refreshUserList(), 500);
-    });
-
     wscon.on('pong', (data) => {
         // Don't log pong messages to keep the log clean
     });
@@ -142,28 +132,50 @@ function initializeWebSocket() {
     });
 
     wscon.on('system', (data) => {
-        if (data.data && typeof data.data === 'object') {
-            if (data.data.type === 'alias_change') {
-                logMessage(`👤 ${data.data.message}`, 'received');
-                // Refresh user list after alias change
-                setTimeout(() => refreshUserList(), 500);
-            } else if (data.data.type === 'user_connected') {
-                logMessage(`👋 ${data.data.message}`, 'received');
-                // Refresh user list when a user connects
-                setTimeout(() => refreshUserList(), 500);
-            } else if (data.data.type === 'user_disconnected') {
-                logMessage(`👋 ${data.data.message}`, 'received');
-                // Refresh user list when a user disconnects
-                setTimeout(() => refreshUserList(), 500);
-            } else if (data.data.type === 'announcement') {
-                logMessage(`📣 ${data.data.message}`, 'received');
-            } else if (data.data.message) {
-                logMessage(`🔧 ${data.data.message}`, 'received');
-            } else {
-                logMessage(`🔧 System: ${JSON.stringify(data.data)}`, 'received');
+        console.log('System message received:', data);
+        if (data.data && data.data.type === 'welcome') {
+            // Handle welcome message
+            if (data.data.id) {
+                wscon.userId = data.data.id;
+                console.log('Set wscon.userId to:', wscon.userId);
             }
+            if (data.data.alias) {
+                wscon.userAlias = data.data.alias;
+                console.log('Set wscon.userAlias to:', wscon.userAlias);
+            }
+
+            // Store current user information for proper "(Me)" display
+            setCurrentUserInfo(data.data.id, data.data.alias);
+
+            logMessage(`� Welcome! Connected as ${data.data.id}`, 'received');
+
+            // Request user list after welcome message is processed
+            setTimeout(() => {
+                console.log('Requesting user list after welcome message');
+                refreshUserList();
+            }, 100);
+        } else if (data.data && data.data.type === 'alias_change') {
+            logMessage(`� ${data.data.message}`, 'received');
+            // Update current user info when alias changes
+            if (window.currentUserInfo && data.data.newAlias) {
+                window.currentUserInfo.alias = data.data.newAlias;
+            }
+            // Refresh user list after alias change
+            setTimeout(() => refreshUserList(), 500);
+        } else if (data.data && data.data.type === 'user_connected') {
+            logMessage(`👋 ${data.data.message}`, 'received');
+            // Refresh user list when a user connects
+            setTimeout(() => refreshUserList(), 500);
+        } else if (data.data && data.data.type === 'user_disconnected') {
+            logMessage(`� ${data.data.message}`, 'received');
+            // Refresh user list when a user disconnects
+            setTimeout(() => refreshUserList(), 500);
+        } else if (data.data && data.data.type === 'announcement') {
+            logMessage(`� ${data.data.message}`, 'received');
+        } else if (data.data && data.data.message) {
+            logMessage(`🔧 ${data.data.message}`, 'received');
         } else {
-            logMessage(`🔧 System: ${JSON.stringify(data)}`, 'received');
+            logMessage(`🔧 System: ${JSON.stringify(data.data)}`, 'received');
         }
     });
 
@@ -342,6 +354,8 @@ function disconnect() {
     if (wscon) {
         wscon.disconnect();
         wscon = null;
+        // Clear current user information on disconnect
+        clearCurrentUserInfo();
         updateStatus(false);
     }
 }
