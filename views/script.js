@@ -9,6 +9,9 @@ class WebSocketConnection {
         this.reconnectInterval = options.reconnectInterval || 1000;
         this.autoReconnect = options.autoReconnect !== false;
         this.token = options.token || 'mysecrettoken';
+        this.userId = null;
+        this.userAlias = null;
+        this.lastFileMetadata = null;
     }
 
     connect() {
@@ -365,7 +368,11 @@ function initializeWebSocket() {
     });
 
     wscon.on('message', (data) => {
-        logMessage('Received: ' + JSON.stringify(data), 'received');
+        // Only log non-system messages to avoid cluttering the log
+        const systemEvents = ['pong', 'heartbeat', 'ack', 'typing', 'file_received'];
+        if (!systemEvents.includes(data.event)) {
+            logMessage('Received: ' + JSON.stringify(data), 'received');
+        }
     });
 
     wscon.on('subscribed', (data) => {
@@ -389,23 +396,29 @@ function initializeWebSocket() {
     });
 
     wscon.on('welcome', (data) => {
+        if (data.id) {
+            wscon.userId = data.id;
+        }
+        if (data.alias) {
+            wscon.userAlias = data.alias;
+        }
         logMessage(`👋 Welcome! Connected as ${data.id}`, 'received');
     });
 
     wscon.on('pong', (data) => {
-        logMessage(`🏓 Pong received`, 'received');
+        // Don't log pong messages to keep the log clean
     });
 
     wscon.on('heartbeat', (data) => {
-        logMessage(`💓 ${data.connections} clients online`, 'received');
+        // Don't log heartbeat messages to keep the log clean
+        // Update connection count if needed
+        if (data.connections !== undefined) {
+            updateConnectionCount(data.connections);
+        }
     });
 
     wscon.on('ack', (data) => {
-        if (data.action) {
-            logMessage(`✅ ${data.action}`, 'received');
-        } else {
-            logMessage(`✅ Acknowledged`, 'received');
-        }
+        // Don't log acknowledgment messages to keep the log clean
     });
 
     wscon.on('broadcast', (data) => {
@@ -440,25 +453,64 @@ function initializeWebSocket() {
 
     wscon.on('file_sent', (data) => {
         const size = formatFileSize(data.size);
-        const recipient = data.recipientId ? ` to ${data.recipientId}` : ' (broadcast)';
+        let recipient = ' (broadcast)';
+        if (data.recipientId) {
+            const recipientElement = document.querySelector(`[data-user-id="${data.recipientId}"]`);
+            const name = recipientElement ? recipientElement.textContent : data.recipientId;
+            recipient = ` to ${name}`;
+        } else if (data.topic) {
+            recipient = ` to topic ${data.topic}`;
+        }
         logMessage(`📤 File sent: ${data.filename} (${size})${recipient}`, 'sent');
     });
 
     wscon.on('file_received', (data) => {
-        const blob = new Blob([data.data]);
-        const url = URL.createObjectURL(blob);
-        const size = formatFileSize(data.data.byteLength);
-        const filename = data.filename || 'received_file';
-        logFileMessage(`📎 File received: ${filename} (${size})`, 'received', url, 'Download');
+        if (wscon.lastFileMetadata) {
+            const metadata = wscon.lastFileMetadata;
+            const isFromCurrentUser = metadata.from === wscon.userId || metadata.from === wscon.userAlias;
+
+            if (isFromCurrentUser) {
+                // For files sent by current user, show as "File sent" with recipient info
+                let recipientInfo = '';
+                if (metadata.to) {
+                    recipientInfo = ` to ${metadata.to}`;
+                } else if (metadata.topic) {
+                    recipientInfo = ` to topic ${metadata.topic}`;
+                } else {
+                    recipientInfo = ' (broadcast)';
+                }
+                logMessage(`📤 File sent: ${metadata.filename} (${formatFileSize(metadata.size)})${recipientInfo}`, 'sent');
+            } else {
+                // For files from others, show as received
+                logMessage(`📎 ${metadata.from} shared: ${metadata.filename} (${formatFileSize(metadata.size)})`, 'received');
+            }
+
+            // Clear the stored metadata
+            wscon.lastFileMetadata = null;
+        } else {
+            // Fallback if no metadata (shouldn't happen in normal flow)
+            const blob = new Blob([data.data]);
+            const url = URL.createObjectURL(blob);
+            const size = formatFileSize(data.data.byteLength);
+            const filename = data.filename || 'received_file';
+            logFileMessage(`📎 File received: ${filename} (${size})`, 'received', url, 'Download');
+        }
     });
 
     wscon.on('file', (data) => {
         if (data.filename && data.size && data.from) {
-            logMessage(`📎 ${data.from} shared: ${data.filename} (${formatFileSize(data.size)})`, 'received');
+            // Store the file metadata for use in file_received handler
+            wscon.lastFileMetadata = data;
+            // Don't show the shared message for files sent by the current user
+            // since they already see the "File sent" message
+            if (data.from !== wscon.userId && data.from !== wscon.userAlias) {
+                // Don't log here - let file_received handler show the consolidated message
+            }
         }
     });
 
     wscon.on('typing', (data) => {
+        // Handle typing indicators without logging to main message log
         if (data.data && data.data.typing) {
             showTypingIndicator();
         }
@@ -491,8 +543,8 @@ function initializeWebSocket() {
     });
 
     wscon.on('direct_sent', (data) => {
-        const recipientName = document.querySelector(`[data-user-id="${data.recipientId}"]`);
-        const name = recipientName ? recipientName.textContent : data.recipientId;
+        const recipientElement = document.querySelector(`[data-user-id="${data.recipientId}"]`);
+        const name = recipientElement ? recipientElement.textContent : data.recipientId;
         logMessage(`💬 DM sent to ${name}: ${data.data.message}`, 'sent');
     });
 
@@ -605,42 +657,43 @@ function showTypingIndicator() {
     }
 }
 
-function showUploadingIndicator() {
-    const indicator = document.getElementById('uploadingIndicator');
-    if (indicator) {
-        indicator.style.display = 'block';
-        setTimeout(() => {
-            indicator.style.display = 'none';
-        }, 5000);
+function updateConnectionCount(count) {
+    // Update the user count display with connection count
+    if (userCount) {
+        userCount.textContent = count;
     }
 }
 
-function updateSubscriptionsList() {
-    if (!wscon) return;
+function updateUserList(users) {
+    userCount.textContent = users.length;
+    userList.innerHTML = '';
+    recipientSelect.innerHTML = '<option value="">Select recipient...</option>';
+    fileRecipientSelect.innerHTML = '<option value="">Select recipient...</option>';
 
-    const subscriptions = wscon.getSubscriptions();
-    subscriptionsList.innerHTML = '';
-    topicSelect.innerHTML = '<option value="">Select topic...</option>';
-    fileTopicSelect.innerHTML = '<option value="">Select topic...</option>';
+    users.forEach(user => {
+        // Check if this is the current user
+        const isCurrentUser = (user.id === wscon.userId) || (user.alias === wscon.userAlias);
+        const displayName = isCurrentUser ? `${user.alias} (Me)` : user.alias;
 
-    subscriptions.forEach(topic => {
-        // Add badge to subscriptions list
-        const badge = document.createElement('div');
-        badge.className = 'subscription-badge';
-        badge.innerHTML = `${topic}<span class="remove-btn" onclick="unsubscribeFromTopic('${topic}')">×</span>`;
-        subscriptionsList.appendChild(badge);
+        // Add to user list
+        const userDiv = document.createElement('div');
+        userDiv.className = 'user-item';
+        userDiv.textContent = displayName;
+        userDiv.dataset.userId = user.id;
+        userDiv.onclick = () => selectUser(user.id);
+        userList.appendChild(userDiv);
 
-        // Add to topic select dropdown
+        // Add to recipient select
         const option = document.createElement('option');
-        option.value = topic;
-        option.textContent = topic;
-        topicSelect.appendChild(option);
+        option.value = user.id;
+        option.textContent = displayName;
+        recipientSelect.appendChild(option);
 
-        // Add to file topic select dropdown
+        // Add to file recipient select
         const fileOption = document.createElement('option');
-        fileOption.value = topic;
-        fileOption.textContent = topic;
-        fileTopicSelect.appendChild(fileOption);
+        fileOption.value = user.id;
+        fileOption.textContent = displayName;
+        fileRecipientSelect.appendChild(fileOption);
     });
 }
 
@@ -694,6 +747,13 @@ function updateStatus(connected) {
     }
 }
 
+function updateConnectionCount(count) {
+    // Update the user count display with connection count
+    if (userCount) {
+        userCount.textContent = count;
+    }
+}
+
 function updateUserList(users) {
     userCount.textContent = users.length;
     userList.innerHTML = '';
@@ -701,10 +761,14 @@ function updateUserList(users) {
     fileRecipientSelect.innerHTML = '<option value="">Select recipient...</option>';
 
     users.forEach(user => {
+        // Check if this is the current user
+        const isCurrentUser = (user.id === wscon.userId) || (user.alias === wscon.userAlias);
+        const displayName = isCurrentUser ? `${user.alias} (Me)` : user.alias;
+
         // Add to user list
         const userDiv = document.createElement('div');
         userDiv.className = 'user-item';
-        userDiv.textContent = user.alias;
+        userDiv.textContent = displayName;
         userDiv.dataset.userId = user.id;
         userDiv.onclick = () => selectUser(user.id);
         userList.appendChild(userDiv);
@@ -712,13 +776,13 @@ function updateUserList(users) {
         // Add to recipient select
         const option = document.createElement('option');
         option.value = user.id;
-        option.textContent = user.alias;
+        option.textContent = displayName;
         recipientSelect.appendChild(option);
 
         // Add to file recipient select
         const fileOption = document.createElement('option');
         fileOption.value = user.id;
-        fileOption.textContent = user.alias;
+        fileOption.textContent = displayName;
         fileRecipientSelect.appendChild(fileOption);
     });
 }

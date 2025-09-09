@@ -577,14 +577,14 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 		socket.conn.writeBinaryAsync(payload)
 		log.Printf("Sent binary file to %s from %s", socket.pendingFile.To, socket.ID)
 	} else if socket.pendingFile.Topic != "" {
-		// Send to topic subscribers
+		// Send to topic subscribers (excluding sender since they already know they sent it)
 		fileMsg.Topic = socket.pendingFile.Topic
-		s.hub.BroadcastMessageExcept(fileMsg, nil) // This will filter by topic subscriptions
-		s.hub.BroadcastBinaryToAll(payload)        // For now, broadcast binary to all - could be optimized
+		s.hub.BroadcastMessageExcept(fileMsg, socket) // This will filter by topic subscriptions
+		s.hub.BroadcastBinaryToAll(payload)           // For now, broadcast binary to all - could be optimized
 		log.Printf("Broadcasted binary file to topic %s from %s", socket.pendingFile.Topic, socket.ID)
 	} else {
-		// Broadcast to all clients including sender
-		s.hub.BroadcastMessage(fileMsg)
+		// Broadcast to all clients except sender (since they already know they sent it)
+		s.hub.BroadcastMessageExcept(fileMsg, socket)
 		s.hub.BroadcastBinaryToAll(payload)
 		log.Printf("Broadcasted binary file from %s", socket.ID)
 	}
