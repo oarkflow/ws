@@ -150,13 +150,14 @@ export function selectUser(userId) {
     if (selectedUser) {
         selectedUser.classList.remove('bg-white', 'border-slate-200', 'text-slate-900');
         selectedUser.classList.add('bg-blue-100', 'border-blue-300', 'text-blue-800');
-        recipientSelect.value = userId;
-        // Set message type to direct
-        document.querySelector('[data-type="direct"]').click();
-        // Show recipient select without clearing the value
-        recipientSelect.classList.remove('hidden');
-        topicSelect.classList.add('hidden');
-        topicSelect.value = '';
+
+        // Set message type to direct and update UI
+        setMessageType('direct');
+
+        // Set the recipient value after ensuring the dropdown is visible
+        setTimeout(() => {
+            recipientSelect.value = userId;
+        }, 10);
     }
 }
 
