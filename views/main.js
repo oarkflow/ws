@@ -12,6 +12,7 @@ import {
     setCurrentUserInfo,
     clearCurrentUserInfo,
     setMessageType,
+    updateTopicSelect,
     statusEl,
     connectBtn,
     disconnectBtn,
@@ -283,6 +284,9 @@ function initializeWebSocket() {
         } else if (data.data && data.data.type === 'user_disconnected') {
             // Refresh user list when a user disconnects
             setTimeout(() => refreshUserList(), 500);
+        } else if (data.data && data.data.type === 'topic_list_update') {
+            // Update topic select dropdown with new topic list
+            updateTopicSelect(data.data.topics || []);
         } else {
             // Handle any other system messages that might contain connection notifications
             // Don't log them to the message log - they're handled by toasts

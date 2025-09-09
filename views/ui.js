@@ -246,6 +246,26 @@ export function setMessageType(type) {
     toggleRecipientSelect();
 }
 
+export function updateTopicSelect(topics) {
+    // Update topic select dropdown
+    topicSelect.innerHTML = '<option value="">Select topic...</option>';
+    fileTopicSelect.innerHTML = '<option value="">Select topic...</option>';
+
+    topics.forEach(topic => {
+        // Add to topic select
+        const option = document.createElement('option');
+        option.value = topic;
+        option.textContent = topic;
+        topicSelect.appendChild(option);
+
+        // Add to file topic select
+        const fileOption = document.createElement('option');
+        fileOption.value = topic;
+        fileOption.textContent = topic;
+        fileTopicSelect.appendChild(fileOption);
+    });
+}
+
 // DOM elements
 export const statusEl = document.getElementById('status');
 export const connectBtn = document.getElementById('connectBtn');

@@ -373,6 +373,28 @@ func (h *Hub) GetConnectionCount() int64 {
 	return h.connCount
 }
 
+// GetAllTopics returns a list of all active topics across all connections
+func (h *Hub) GetAllTopics() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	topicSet := make(map[string]bool)
+	for _, socket := range h.sockets {
+		if !socket.IsBanned() {
+			subs := socket.conn.GetSubscriptions()
+			for topic := range subs {
+				topicSet[topic] = true
+			}
+		}
+	}
+
+	topics := make([]string, 0, len(topicSet))
+	for topic := range topicSet {
+		topics = append(topics, topic)
+	}
+	return topics
+}
+
 // triggerHandlers triggers all handlers for a specific event
 func (h *Hub) triggerHandlers(event string, socket *Socket) {
 	// Trigger global handlers

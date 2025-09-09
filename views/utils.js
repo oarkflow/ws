@@ -99,28 +99,35 @@ export function logMessage(message, type = 'received') {
     }
 
     const div = document.createElement('div');
-    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white';
+    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white flex';
+
+    // Align messages based on type
+    if (type === 'sent') {
+        div.classList.add('justify-end');
+    } else {
+        div.classList.add('justify-start');
+    }
 
     const messageDiv = document.createElement('div');
-    messageDiv.className = 'flex-1';
+    messageDiv.className = 'max-w-xs lg:max-w-md xl:max-w-lg';
 
     if (type === 'sent') {
         div.classList.add('border-l-4', 'border-blue-400');
         messageDiv.innerHTML = `
-            <div class="text-blue-800 font-medium text-sm">${message}</div>
-            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+            <div class="text-blue-800 font-medium text-sm bg-blue-50 p-3 rounded-lg">${message}</div>
+            <div class="text-xs text-gray-500 mt-1 text-right">${new Date().toLocaleTimeString()}</div>
         `;
         updateMessageStats('sent');
     } else if (type === 'error') {
         div.classList.add('border-l-4', 'border-red-400');
         messageDiv.innerHTML = `
-            <div class="text-red-800 font-medium text-sm">${message}</div>
+            <div class="text-red-800 font-medium text-sm bg-red-50 p-3 rounded-lg">${message}</div>
             <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
         `;
     } else {
         div.classList.add('border-l-4', 'border-green-400');
         messageDiv.innerHTML = `
-            <div class="text-green-800 text-sm">${message}</div>
+            <div class="text-green-800 text-sm bg-green-50 p-3 rounded-lg">${message}</div>
             <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
         `;
     }
@@ -138,22 +145,29 @@ export function logMessage(message, type = 'received') {
 
 export function logFileMessage(message, type = 'received', fileUrl = null, buttonText = 'Download') {
     const div = document.createElement('div');
-    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white';
+    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white flex';
+
+    // Align messages based on type
+    if (type === 'sent') {
+        div.classList.add('justify-end');
+    } else {
+        div.classList.add('justify-start');
+    }
 
     const messageDiv = document.createElement('div');
-    messageDiv.className = 'flex-1';
+    messageDiv.className = 'max-w-xs lg:max-w-md xl:max-w-lg';
 
     if (type === 'sent') {
         div.classList.add('border-l-4', 'border-purple-400');
         messageDiv.innerHTML = `
-            <div class="text-purple-800 font-medium text-sm">${message}</div>
-            <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
+            <div class="text-purple-800 font-medium text-sm bg-purple-50 p-3 rounded-lg">${message}</div>
+            <div class="text-xs text-gray-500 mt-1 text-right">${new Date().toLocaleTimeString()}</div>
         `;
         updateMessageStats('files');
     } else {
         div.classList.add('border-l-4', 'border-orange-400');
         messageDiv.innerHTML = `
-            <div class="text-orange-800 text-sm">${message}</div>
+            <div class="text-orange-800 text-sm bg-orange-50 p-3 rounded-lg">${message}</div>
             <div class="text-xs text-gray-500 mt-1">${new Date().toLocaleTimeString()}</div>
         `;
     }
@@ -185,11 +199,29 @@ export function logFileMessage(message, type = 'received', fileUrl = null, butto
 }
 
 export function showTypingIndicator() {
-    const indicator = document.getElementById('typingIndicator');
-    if (indicator) {
-        indicator.classList.remove('hidden');
+    // Remove any existing typing indicator
+    const existingIndicator = document.getElementById('typingIndicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+
+    // Create typing indicator message
+    const div = document.createElement('div');
+    div.id = 'typingIndicator';
+    div.className = 'p-2 text-xs italic text-gray-500 fade-in mb-2 text-center';
+
+    div.innerHTML = 'Someone is typing...';
+
+    // Add to bottom of log container
+    if (logContainer) {
+        logContainer.appendChild(div);
+        logContainer.scrollTop = logContainer.scrollHeight;
+
+        // Auto-remove after 3 seconds
         setTimeout(() => {
-            indicator.classList.add('hidden');
+            if (div.parentNode) {
+                div.remove();
+            }
         }, 3000);
     }
 }

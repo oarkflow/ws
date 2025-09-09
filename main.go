@@ -34,6 +34,17 @@ func main() {
 			},
 		}
 		hub.BroadcastMessage(userListMsg)
+
+		// Send current topic list to the new client
+		allTopics := hub.GetAllTopics()
+		topicListMsg := Message{
+			T: MsgSystem,
+			Data: map[string]interface{}{
+				"type":   "topic_list_update",
+				"topics": allTopics,
+			},
+		}
+		socket.SendMessage(topicListMsg)
 	})
 
 	hub.OnMessage(func(socket *Socket) {

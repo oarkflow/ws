@@ -380,6 +380,17 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 		}
 		socket.SendMessage(response)
 
+		// Broadcast updated topic list to all users
+		allTopics := s.hub.GetAllTopics()
+		topicListMsg := Message{
+			T: MsgSystem,
+			Data: map[string]interface{}{
+				"type":   "topic_list_update",
+				"topics": allTopics,
+			},
+		}
+		s.hub.BroadcastMessage(topicListMsg)
+
 	case MsgUnsubscribe:
 		// Handle unsubscription
 		socket.conn.Unsubscribe(msg.Topic)
@@ -388,6 +399,17 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 			Data: map[string]string{"action": "unsubscribed", "topic": msg.Topic},
 		}
 		socket.SendMessage(response)
+
+		// Broadcast updated topic list to all users
+		allTopics := s.hub.GetAllTopics()
+		topicListMsg := Message{
+			T: MsgSystem,
+			Data: map[string]interface{}{
+				"type":   "topic_list_update",
+				"topics": allTopics,
+			},
+		}
+		s.hub.BroadcastMessage(topicListMsg)
 
 	case MsgBroadcast:
 		// Broadcast to all clients (excluding sender)
