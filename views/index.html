@@ -28,6 +28,15 @@
             </div>
 
             <div class="chat-panel">
+                <div class="subscriptions-panel">
+                    <h3>Topic Subscriptions</h3>
+                    <div class="subscription-input">
+                        <input type="text" id="topicInput" placeholder="Enter topic name">
+                        <button id="subscribeBtn" disabled>Subscribe</button>
+                    </div>
+                    <div id="subscriptionsList" class="subscriptions-list"></div>
+                </div>
+
                 <div class="chat-controls">
                     <div class="input-group">
                         <label for="messageInput">Message:</label>
@@ -35,10 +44,30 @@
                         <select id="messageType">
                             <option value="broadcast">Broadcast</option>
                             <option value="direct">Direct Message</option>
+                            <option value="topic">Topic Message</option>
                         </select>
                         <select id="recipientSelect" style="display: none;">
                             <option value="">Select recipient...</option>
                         </select>
+                        <select id="topicSelect" style="display: none;">
+                            <option value="">Select topic...</option>
+                        </select>
+                    </div>
+                    <div class="file-upload-group">
+                        <label for="fileInput">File:</label>
+                        <input type="file" id="fileInput">
+                        <select id="fileType">
+                            <option value="broadcast">Broadcast File</option>
+                            <option value="direct">Send to User</option>
+                            <option value="topic">Send to Topic</option>
+                        </select>
+                        <select id="fileRecipientSelect" style="display: none;">
+                            <option value="">Select recipient...</option>
+                        </select>
+                        <select id="fileTopicSelect" style="display: none;">
+                            <option value="">Select topic...</option>
+                        </select>
+                        <button id="sendFileBtn" disabled>Send File</button>
                     </div>
                     <div class="buttons">
                         <button id="sendBtn" disabled>Send</button>

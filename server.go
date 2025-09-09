@@ -311,8 +311,28 @@ func (s *Server) handleMessage(socket *Socket, payload []byte) {
 				if to, ok := obj["to"].(string); ok {
 					msg.To = to
 				}
+				if topic, ok := obj["topic"].(string); ok {
+					msg.Topic = topic
+				}
 				if code, ok := obj["code"].(float64); ok {
 					msg.Code = int(code)
+				}
+				// Handle file-specific fields
+				if filename, ok := obj["filename"].(string); ok {
+					if msg.Data == nil {
+						msg.Data = make(map[string]interface{})
+					}
+					if dataMap, ok := msg.Data.(map[string]interface{}); ok {
+						dataMap["filename"] = filename
+					}
+				}
+				if size, ok := obj["size"].(float64); ok {
+					if msg.Data == nil {
+						msg.Data = make(map[string]interface{})
+					}
+					if dataMap, ok := msg.Data.(map[string]interface{}); ok {
+						dataMap["size"] = int64(size)
+					}
 				}
 				s.handleUnifiedMessage(socket, msg)
 				return
@@ -353,6 +373,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 	switch msg.T {
 	case MsgSubscribe:
 		// Handle subscription
+		socket.conn.Subscribe(msg.Topic)
 		response := Message{
 			T:    MsgAck,
 			Data: map[string]string{"action": "subscribed", "topic": msg.Topic},
@@ -361,6 +382,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 
 	case MsgUnsubscribe:
 		// Handle unsubscription
+		socket.conn.Unsubscribe(msg.Topic)
 		response := Message{
 			T:    MsgAck,
 			Data: map[string]string{"action": "unsubscribed", "topic": msg.Topic},
@@ -454,13 +476,23 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 				aliasMsg := Message{
 					T: MsgSystem,
 					Data: map[string]interface{}{
-						"message": fmt.Sprintf("%s is now known as %s", socket.ID[:8], alias),
+						"message": fmt.Sprintf("%s is now known as %s", socket.ID[:12], alias),
 						"type":    "alias_change",
 						"userId":  socket.ID,
 						"alias":   alias,
 					},
 				}
 				s.hub.BroadcastMessage(aliasMsg)
+
+				// Broadcast updated user list to all users
+				userList := s.hub.GetUserList()
+				userListMsg := Message{
+					T: MsgUserList,
+					Data: map[string]interface{}{
+						"users": userList,
+					},
+				}
+				s.hub.BroadcastMessage(userListMsg)
 			}
 		}
 
@@ -513,14 +545,47 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 		return
 	}
 
+	// Create file message with metadata for broadcasting
+	fileMsg := Message{
+		T: MsgFile,
+		Data: map[string]interface{}{
+			"filename": "unknown",
+			"size":     0,
+			"from":     socket.GetAlias(),
+		},
+	}
+
+	// Extract metadata from pending file if available
+	if socket.pendingFile != nil && socket.pendingFile.Data != nil {
+		if dataMap, ok := socket.pendingFile.Data.(map[string]interface{}); ok {
+			if filename, exists := dataMap["filename"]; exists {
+				fileMsg.Data.(map[string]interface{})["filename"] = filename
+			}
+			if size, exists := dataMap["size"]; exists {
+				fileMsg.Data.(map[string]interface{})["size"] = size
+			}
+		}
+	}
+
 	// Use the pending metadata to route the file
 	if socket.pendingFile.To != "" {
 		// Send to specific socket
+		s.hub.Emit(socket.pendingFile.To, "file", fileMsg.Data)
 		s.hub.EmitBinary(socket.pendingFile.To, payload)
+		// Also send to sender so they can see it in their chat log
+		socket.Send("file", fileMsg.Data)
+		socket.conn.writeBinaryAsync(payload)
 		log.Printf("Sent binary file to %s from %s", socket.pendingFile.To, socket.ID)
+	} else if socket.pendingFile.Topic != "" {
+		// Send to topic subscribers
+		fileMsg.Topic = socket.pendingFile.Topic
+		s.hub.BroadcastMessageExcept(fileMsg, nil) // This will filter by topic subscriptions
+		s.hub.BroadcastBinaryToAll(payload)        // For now, broadcast binary to all - could be optimized
+		log.Printf("Broadcasted binary file to topic %s from %s", socket.pendingFile.Topic, socket.ID)
 	} else {
-		// Broadcast to all except sender
-		s.hub.BroadcastBinary(payload, socket)
+		// Broadcast to all clients including sender
+		s.hub.BroadcastMessage(fileMsg)
+		s.hub.BroadcastBinaryToAll(payload)
 		log.Printf("Broadcasted binary file from %s", socket.ID)
 	}
 

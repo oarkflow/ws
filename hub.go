@@ -158,16 +158,21 @@ func (h *Hub) BroadcastMessageExcept(msg Message, excludeSocket *Socket) {
 	if jsonData, err := json.Marshal(msg); err == nil {
 		sentCount := 0
 		for _, socket := range h.sockets {
-			if !socket.IsBanned() && socket != excludeSocket {
+			if !socket.IsBanned() {
+				// If this is a topic message, only send to subscribers (including sender if subscribed)
+				if msg.Topic != "" && msg.Topic != "general" {
+					if !socket.conn.IsSubscribed(msg.Topic) {
+						continue // Skip this client if not subscribed to the topic
+					}
+				} else if socket == excludeSocket {
+					// For non-topic messages, exclude the sender
+					continue
+				}
 				socket.conn.writeAsync(jsonData)
 				sentCount++
 			}
 		}
-		if excludeSocket != nil {
-			log.Printf("Broadcasting message type %d to %d clients (excluding sender)", msg.T, sentCount)
-		} else {
-			log.Printf("Broadcasting message type %d to %d clients", msg.T, sentCount)
-		}
+		log.Printf("Broadcasting message type %d to %d clients", msg.T, sentCount)
 	}
 }
 
@@ -188,6 +193,21 @@ func (h *Hub) BroadcastBinary(data []byte, excludeSocket *Socket) {
 	} else {
 		log.Printf("Broadcasting binary data to %d clients", sentCount)
 	}
+}
+
+// BroadcastBinaryToAll sends binary data to all connected sockets including the sender
+func (h *Hub) BroadcastBinaryToAll(data []byte) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	sentCount := 0
+	for _, socket := range h.sockets {
+		if !socket.IsBanned() {
+			socket.conn.writeBinaryAsync(data)
+			sentCount++
+		}
+	}
+	log.Printf("Broadcasting binary data to %d clients (including sender)", sentCount)
 }
 
 // Notify sends a message to specific sockets
@@ -412,7 +432,7 @@ func (s *Socket) GetAlias() string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if s.alias == "" {
-		return s.ID[:8] // Return first 8 chars of ID if no alias
+		return s.ID[:12] // Return first 12 chars of ID if no alias
 	}
 	return s.alias
 }

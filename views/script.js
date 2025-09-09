@@ -186,24 +186,30 @@ class WebSocketConnection {
         return this;
     }
 
-    sendFile(file, recipientId = null) {
+    sendFile(file, recipientId = null, topic = null) {
         if (!file) return this;
 
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            // Send file metadata first
+            const metadata = {
+                t: 10, // MsgFile
+                filename: file.name,
+                size: file.size
+            };
+            if (recipientId) {
+                metadata.to = recipientId;
+            }
+            if (topic) {
+                metadata.topic = topic;
+            }
+            this.ws.send(JSON.stringify(metadata));
+
+            // Then send the binary data
             const reader = new FileReader();
             reader.onload = (event) => {
                 const arrayBuffer = event.target.result;
-                const message = {
-                    t: 10, // MsgFile
-                    filename: file.name,
-                    size: file.size,
-                    data: arrayBuffer
-                };
-                if (recipientId) {
-                    message.to = recipientId;
-                }
-                this.ws.send(JSON.stringify(message));
-                this.emit('file_sent', { filename: file.name, size: file.size, recipientId });
+                this.ws.send(arrayBuffer);
+                this.emit('file_sent', { filename: file.name, size: file.size, recipientId, topic });
             };
             reader.readAsArrayBuffer(file);
         }
@@ -341,6 +347,8 @@ function initializeWebSocket() {
     wscon.on('open', () => {
         logMessage('Connected to WebSocket server', 'received');
         updateStatus(true);
+        // Request initial user list
+        setTimeout(() => refreshUserList(), 500);
     });
 
     wscon.on('close', () => {
@@ -361,15 +369,23 @@ function initializeWebSocket() {
     });
 
     wscon.on('subscribed', (data) => {
-        logMessage(`Subscribed to topic: ${data.topic}`, 'received');
+        logMessage(`✅ Subscribed to topic: ${data.topic}`, 'received');
+        updateSubscriptionsList();
     });
 
     wscon.on('unsubscribed', (data) => {
-        logMessage(`Unsubscribed from topic: ${data.topic}`, 'received');
+        logMessage(`❌ Unsubscribed from topic: ${data.topic}`, 'received');
+        updateSubscriptionsList();
     });
 
     wscon.on('published', (data) => {
-        logMessage(`Published to ${data.topic}: ${JSON.stringify(data.data)}`, 'sent');
+        if (data.topic && data.topic !== 'general') {
+            const message = data.data && data.data.message ? data.data.message : JSON.stringify(data.data);
+            logMessage(`📢 [${data.topic}] ${message}`, 'received');
+        } else {
+            const message = data.data && data.data.message ? data.data.message : JSON.stringify(data.data);
+            logMessage(`Published to ${data.topic}: ${message}`, 'sent');
+        }
     });
 
     wscon.on('welcome', (data) => {
@@ -432,7 +448,14 @@ function initializeWebSocket() {
         const blob = new Blob([data.data]);
         const url = URL.createObjectURL(blob);
         const size = formatFileSize(data.data.byteLength);
-        logFileMessage(`📎 File received: ${size}`, 'received', url, 'Download File');
+        const filename = data.filename || 'received_file';
+        logFileMessage(`📎 File received: ${filename} (${size})`, 'received', url, 'Download');
+    });
+
+    wscon.on('file', (data) => {
+        if (data.filename && data.size && data.from) {
+            logMessage(`📎 ${data.from} shared: ${data.filename} (${formatFileSize(data.size)})`, 'received');
+        }
     });
 
     wscon.on('typing', (data) => {
@@ -485,6 +508,7 @@ const setAliasBtn = document.getElementById('setAliasBtn');
 const messageInput = document.getElementById('messageInput');
 const messageType = document.getElementById('messageType');
 const recipientSelect = document.getElementById('recipientSelect');
+const topicSelect = document.getElementById('topicSelect');
 const sendBtn = document.getElementById('sendBtn');
 const pingBtn = document.getElementById('pingBtn');
 const userListBtn = document.getElementById('userListBtn');
@@ -492,15 +516,17 @@ const userCount = document.getElementById('userCount');
 const userList = document.getElementById('userList');
 const logContainer = document.getElementById('logContainer');
 
-// Additional elements for legacy functionality (may not exist)
-const subscribeBtn = document.getElementById('subscribeBtn');
-const unsubscribeBtn = document.getElementById('unsubscribeBtn');
-const publishBtn = document.getElementById('publishBtn');
-const broadcastBtn = document.getElementById('broadcastBtn');
-const sendFileBtn = document.getElementById('sendFileBtn');
+// Subscription elements
 const topicInput = document.getElementById('topicInput');
+const subscribeBtn = document.getElementById('subscribeBtn');
+const subscriptionsList = document.getElementById('subscriptionsList');
+
+// File upload elements
 const fileInput = document.getElementById('fileInput');
-const recipientInput = document.getElementById('recipientInput');
+const fileType = document.getElementById('fileType');
+const fileRecipientSelect = document.getElementById('fileRecipientSelect');
+const fileTopicSelect = document.getElementById('fileTopicSelect');
+const sendFileBtn = document.getElementById('sendFileBtn');
 
 // Typing detection
 let typingTimer;
@@ -589,6 +615,53 @@ function showUploadingIndicator() {
     }
 }
 
+function updateSubscriptionsList() {
+    if (!wscon) return;
+
+    const subscriptions = wscon.getSubscriptions();
+    subscriptionsList.innerHTML = '';
+    topicSelect.innerHTML = '<option value="">Select topic...</option>';
+    fileTopicSelect.innerHTML = '<option value="">Select topic...</option>';
+
+    subscriptions.forEach(topic => {
+        // Add badge to subscriptions list
+        const badge = document.createElement('div');
+        badge.className = 'subscription-badge';
+        badge.innerHTML = `${topic}<span class="remove-btn" onclick="unsubscribeFromTopic('${topic}')">×</span>`;
+        subscriptionsList.appendChild(badge);
+
+        // Add to topic select dropdown
+        const option = document.createElement('option');
+        option.value = topic;
+        option.textContent = topic;
+        topicSelect.appendChild(option);
+
+        // Add to file topic select dropdown
+        const fileOption = document.createElement('option');
+        fileOption.value = topic;
+        fileOption.textContent = topic;
+        fileTopicSelect.appendChild(fileOption);
+    });
+}
+
+function subscribeToTopic() {
+    const topic = topicInput.value.trim();
+    if (!topic) {
+        alert('Please enter a topic name');
+        return;
+    }
+    if (wscon) {
+        wscon.subscribe(topic);
+        topicInput.value = '';
+    }
+}
+
+function unsubscribeFromTopic(topic) {
+    if (wscon) {
+        wscon.unsubscribe(topic);
+    }
+}
+
 function updateStatus(connected) {
     if (connected) {
         statusEl.textContent = 'Connected';
@@ -596,7 +669,9 @@ function updateStatus(connected) {
         connectBtn.disabled = true;
         disconnectBtn.disabled = false;
         setAliasBtn.disabled = false;
+        subscribeBtn.disabled = false;
         sendBtn.disabled = false;
+        sendFileBtn.disabled = false;
         pingBtn.disabled = false;
         userListBtn.disabled = false;
     } else {
@@ -605,12 +680,17 @@ function updateStatus(connected) {
         connectBtn.disabled = false;
         disconnectBtn.disabled = true;
         setAliasBtn.disabled = true;
+        subscribeBtn.disabled = true;
         sendBtn.disabled = true;
+        sendFileBtn.disabled = true;
         pingBtn.disabled = true;
         userListBtn.disabled = true;
         userCount.textContent = '0';
         userList.innerHTML = '';
         recipientSelect.innerHTML = '<option value="">Select recipient...</option>';
+        topicSelect.innerHTML = '<option value="">Select topic...</option>';
+        fileTopicSelect.innerHTML = '<option value="">Select topic...</option>';
+        subscriptionsList.innerHTML = '';
     }
 }
 
@@ -618,6 +698,7 @@ function updateUserList(users) {
     userCount.textContent = users.length;
     userList.innerHTML = '';
     recipientSelect.innerHTML = '<option value="">Select recipient...</option>';
+    fileRecipientSelect.innerHTML = '<option value="">Select recipient...</option>';
 
     users.forEach(user => {
         // Add to user list
@@ -633,6 +714,12 @@ function updateUserList(users) {
         option.value = user.id;
         option.textContent = user.alias;
         recipientSelect.appendChild(option);
+
+        // Add to file recipient select
+        const fileOption = document.createElement('option');
+        fileOption.value = user.id;
+        fileOption.textContent = user.alias;
+        fileRecipientSelect.appendChild(fileOption);
     });
 }
 
@@ -655,9 +742,19 @@ function selectUser(userId) {
 function toggleRecipientSelect() {
     if (messageType.value === 'direct') {
         recipientSelect.style.display = 'inline-block';
+        topicSelect.style.display = 'none';
+        recipientSelect.value = '';
+        topicSelect.value = '';
+    } else if (messageType.value === 'topic') {
+        recipientSelect.style.display = 'none';
+        topicSelect.style.display = 'inline-block';
+        recipientSelect.value = '';
+        topicSelect.value = '';
     } else {
         recipientSelect.style.display = 'none';
+        topicSelect.style.display = 'none';
         recipientSelect.value = '';
+        topicSelect.value = '';
         document.querySelectorAll('.user-item').forEach(item => {
             item.classList.remove('selected');
         });
@@ -702,6 +799,13 @@ function sendMessage() {
                 return;
             }
             wscon.sendDirectMessage(recipientId, { message: message });
+        } else if (type === 'topic') {
+            const topic = topicSelect.value;
+            if (!topic) {
+                alert('Please select a topic');
+                return;
+            }
+            wscon.publish(topic, { message: message });
         } else {
             wscon.publish('general', { message: message });
         }
@@ -787,19 +891,53 @@ function testBroadcast() {
     }
 }
 
+function toggleFileRecipientSelect() {
+    if (fileType.value === 'direct') {
+        fileRecipientSelect.style.display = 'inline-block';
+        fileTopicSelect.style.display = 'none';
+        fileRecipientSelect.value = '';
+        fileTopicSelect.value = '';
+    } else if (fileType.value === 'topic') {
+        fileRecipientSelect.style.display = 'none';
+        fileTopicSelect.style.display = 'inline-block';
+        fileRecipientSelect.value = '';
+        fileTopicSelect.value = '';
+    } else {
+        fileRecipientSelect.style.display = 'none';
+        fileTopicSelect.style.display = 'none';
+        fileRecipientSelect.value = '';
+        fileTopicSelect.value = '';
+    }
+}
+
 function sendFile() {
     const file = fileInput.files[0];
-    const recipientId = recipientInput.value.trim() || null;
+    const type = fileType.value;
+
     if (!file) {
         alert('Please select a file');
         return;
     }
+
     if (wscon) {
-        showUploadingIndicator();
-        wscon.sendFile(file, recipientId);
-        // Clear the file input
+        if (type === 'direct') {
+            const recipientId = fileRecipientSelect.value;
+            if (!recipientId) {
+                alert('Please select a recipient');
+                return;
+            }
+            wscon.sendFile(file, recipientId);
+        } else if (type === 'topic') {
+            const topic = fileTopicSelect.value;
+            if (!topic) {
+                alert('Please select a topic');
+                return;
+            }
+            wscon.sendFile(file, null, topic);
+        } else {
+            wscon.sendFile(file);
+        }
         fileInput.value = '';
-        recipientInput.value = '';
     }
 }
 
@@ -807,8 +945,11 @@ function sendFile() {
 connectBtn.addEventListener('click', connect);
 disconnectBtn.addEventListener('click', disconnect);
 setAliasBtn.addEventListener('click', setAlias);
+subscribeBtn.addEventListener('click', subscribeToTopic);
 messageType.addEventListener('change', toggleRecipientSelect);
 sendBtn.addEventListener('click', sendMessage);
+sendFileBtn.addEventListener('click', sendFile);
+fileType.addEventListener('change', toggleFileRecipientSelect);
 pingBtn.addEventListener('click', () => {
     if (wscon) {
         wscon.ws.send(JSON.stringify({ t: 6, data: { timestamp: Date.now() } }));
@@ -816,13 +957,6 @@ pingBtn.addEventListener('click', () => {
     }
 });
 userListBtn.addEventListener('click', refreshUserList);
-
-// Legacy event listeners (only if elements exist)
-if (subscribeBtn) subscribeBtn.addEventListener('click', subscribe);
-if (unsubscribeBtn) unsubscribeBtn.addEventListener('click', unsubscribe);
-if (publishBtn) publishBtn.addEventListener('click', publish);
-if (broadcastBtn) broadcastBtn.addEventListener('click', testBroadcast);
-if (sendFileBtn) sendFileBtn.addEventListener('click', sendFile);
 
 // Enter key handler for message input
 messageInput.addEventListener('keypress', (e) => {
@@ -838,5 +972,13 @@ aliasInput.addEventListener('keypress', (e) => {
     }
 });
 
+// Enter key handler for topic input
+topicInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        subscribeToTopic();
+    }
+});
+
 // Initialize status
 updateStatus(false);
+toggleFileRecipientSelect();

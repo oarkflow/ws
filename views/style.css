@@ -73,6 +73,10 @@ h1 {
     border: 1px solid #e9ecef;
     cursor: pointer;
     transition: background-color 0.2s;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    box-sizing: border-box;
 }
 
 .user-item:hover {
@@ -102,6 +106,34 @@ h1 {
     border: 1px solid #ddd;
     border-radius: 4px;
     margin-left: 10px;
+}
+
+.file-upload-group {
+    margin-bottom: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.file-upload-group label {
+    margin-bottom: 0;
+    white-space: nowrap;
+}
+
+.file-upload-group input[type="file"] {
+    flex: 1;
+    min-width: 200px;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.file-upload-group select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 120px;
 }
 
 .buttons {
@@ -219,4 +251,90 @@ input[type="text"] {
 
 .file-download-btn:hover {
     background-color: #0056b3;
+}
+
+/* Subscription Panel Styles */
+.subscriptions-panel {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #e9ecef;
+}
+
+.subscriptions-panel h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    color: #495057;
+    font-size: 16px;
+}
+
+.subscription-input {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.subscription-input input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.subscription-input button {
+    padding: 8px 16px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.subscription-input button:hover {
+    background-color: #218838;
+}
+
+.subscriptions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 30px;
+}
+
+.subscription-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: #007bff;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.subscription-badge .remove-btn {
+    margin-left: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #ffcccc;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.subscription-badge .remove-btn:hover {
+    color: #ff6666;
+}
+
+.topic-message-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#topicSelect {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-width: 150px;
 }

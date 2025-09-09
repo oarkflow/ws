@@ -159,3 +159,35 @@ func (c *Connection) writeBinaryAsync(data []byte) {
 		// Channel full, drop message to prevent blocking
 	}
 }
+
+// Subscribe adds a topic to the connection's subscriptions
+func (c *Connection) Subscribe(topic string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.subscriptions[topic] = true
+}
+
+// Unsubscribe removes a topic from the connection's subscriptions
+func (c *Connection) Unsubscribe(topic string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.subscriptions, topic)
+}
+
+// IsSubscribed checks if the connection is subscribed to a topic
+func (c *Connection) IsSubscribed(topic string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.subscriptions[topic]
+}
+
+// GetSubscriptions returns a copy of all subscriptions
+func (c *Connection) GetSubscriptions() map[string]bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	subs := make(map[string]bool)
+	for topic, subscribed := range c.subscriptions {
+		subs[topic] = subscribed
+	}
+	return subs
+}

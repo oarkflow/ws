@@ -24,6 +24,16 @@ func main() {
 			},
 		}
 		socket.SendMessage(welcomeMsg)
+
+		// Broadcast updated user list to all clients
+		userList := hub.GetUserList()
+		userListMsg := Message{
+			T: MsgUserList,
+			Data: map[string]interface{}{
+				"users": userList,
+			},
+		}
+		hub.BroadcastMessage(userListMsg)
 	})
 
 	hub.OnMessage(func(socket *Socket) {
@@ -32,6 +42,16 @@ func main() {
 
 	hub.OnClose(func(socket *Socket) {
 		log.Printf("Client disconnected: %s", socket.ID)
+
+		// Broadcast updated user list to all remaining clients
+		userList := hub.GetUserList()
+		userListMsg := Message{
+			T: MsgUserList,
+			Data: map[string]interface{}{
+				"users": userList,
+			},
+		}
+		hub.BroadcastMessage(userListMsg)
 	})
 
 	hub.OnDisconnect(func(socket *Socket) {
