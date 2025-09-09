@@ -12,9 +12,16 @@ import (
 	"time"
 )
 
+// CallManager interface for WebRTC call management
+type CallManager interface {
+	HandleSignalingMessage(socketID string, msg Message)
+	HandleDisconnect(socketID string)
+}
+
 // Server wraps the Hub for backward compatibility
 type Server struct {
-	hub *Hub
+	hub         *Hub
+	callManager CallManager
 }
 
 // NewServer creates a new WebSocket server with Hub
@@ -112,9 +119,13 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	go s.handleConnection(socket)
 }
 
-// GetHub returns the underlying hub for advanced operations
 func (s *Server) GetHub() *Hub {
 	return s.hub
+}
+
+// SetCallManager sets the call manager for WebRTC signaling
+func (s *Server) SetCallManager(cm CallManager) {
+	s.callManager = cm
 }
 
 // Convenience methods for easy access to Hub functionality
@@ -516,6 +527,19 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 				}
 				s.hub.BroadcastMessage(userListMsg)
 			}
+		}
+
+	case MsgAuth, MsgJoin, MsgOffer, MsgAnswer, MsgIceCandidate, MsgMute, MsgUnmute, MsgHold, MsgDTMF:
+		// Handle WebRTC signaling messages
+		if s.callManager != nil {
+			s.callManager.HandleSignalingMessage(socket.ID, msg)
+		} else {
+			// Fallback to ack
+			ackMsg := Message{
+				T:    MsgAck,
+				Data: map[string]string{"status": "received"},
+			}
+			socket.SendMessage(ackMsg)
 		}
 
 	default:

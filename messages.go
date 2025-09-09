@@ -21,6 +21,22 @@ const (
 	MsgThread      = 13
 	MsgUserList    = 14
 	MsgSetAlias    = 15
+	// WebRTC signaling types
+	MsgAuth              = 16
+	MsgJoin              = 17
+	MsgOffer             = 18
+	MsgAnswer            = 19
+	MsgIceCandidate      = 20
+	MsgMute              = 21
+	MsgUnmute            = 22
+	MsgHold              = 23
+	MsgDTMF              = 24
+	MsgJoined            = 25
+	MsgPeerJoined        = 26
+	MsgPeerLeft          = 27
+	MsgCallStateChanged  = 28
+	MsgRecordingStarted  = 29
+	MsgRecordingFinished = 30
 )
 
 // Message represents the unified message format
@@ -67,6 +83,36 @@ func stringToMsgType(event string) int {
 		return MsgUserList
 	case "set_alias":
 		return MsgSetAlias
+	case "auth":
+		return MsgAuth
+	case "join":
+		return MsgJoin
+	case "offer":
+		return MsgOffer
+	case "answer":
+		return MsgAnswer
+	case "ice-candidate":
+		return MsgIceCandidate
+	case "mute":
+		return MsgMute
+	case "unmute":
+		return MsgUnmute
+	case "hold":
+		return MsgHold
+	case "dtmf":
+		return MsgDTMF
+	case "joined":
+		return MsgJoined
+	case "peer-joined":
+		return MsgPeerJoined
+	case "peer-left":
+		return MsgPeerLeft
+	case "call-state-changed":
+		return MsgCallStateChanged
+	case "recording-started":
+		return MsgRecordingStarted
+	case "recording-finished":
+		return MsgRecordingFinished
 	default:
 		return MsgSystem // Default to system message
 	}
@@ -105,6 +151,36 @@ func msgTypeToString(msgType int) string {
 		return "user_list"
 	case MsgSetAlias:
 		return "set_alias"
+	case MsgAuth:
+		return "auth"
+	case MsgJoin:
+		return "join"
+	case MsgOffer:
+		return "offer"
+	case MsgAnswer:
+		return "answer"
+	case MsgIceCandidate:
+		return "ice-candidate"
+	case MsgMute:
+		return "mute"
+	case MsgUnmute:
+		return "unmute"
+	case MsgHold:
+		return "hold"
+	case MsgDTMF:
+		return "dtmf"
+	case MsgJoined:
+		return "joined"
+	case MsgPeerJoined:
+		return "peer-joined"
+	case MsgPeerLeft:
+		return "peer-left"
+	case MsgCallStateChanged:
+		return "call-state-changed"
+	case MsgRecordingStarted:
+		return "recording-started"
+	case MsgRecordingFinished:
+		return "recording-finished"
 	default:
 		return "unknown"
 	}
