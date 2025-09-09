@@ -1,4 +1,4 @@
-package main
+package ws
 
 import (
 	"encoding/json"
@@ -46,6 +46,10 @@ func NewHub(storage MessageStorage) *Hub {
 		maxConns:       100000,
 		storage:        storage,
 	}
+}
+
+func (h *Hub) Storage() MessageStorage {
+	return h.storage
 }
 
 // NewSocket creates a new socket instance

@@ -4,19 +4,21 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/oarkflow/ws"
 )
 
 // Socket methods
 
 func main() {
-	server := NewServer()
+	server := ws.NewServer()
 	hub := server.GetHub()
 
 	// Set up event handlers
-	hub.OnConnect(func(socket *Socket) {
+	hub.OnConnect(func(socket *ws.Socket) {
 		log.Printf("Client connected: %s", socket.ID)
-		welcomeMsg := Message{
-			T: MsgSystem,
+		welcomeMsg := ws.Message{
+			T: ws.MsgSystem,
 			Data: map[string]interface{}{
 				"message": "Connected to WebSocket server",
 				"id":      socket.ID,
@@ -27,8 +29,8 @@ func main() {
 
 		// Broadcast updated user list to all clients
 		userList := hub.GetUserList()
-		userListMsg := Message{
-			T: MsgUserList,
+		userListMsg := ws.Message{
+			T: ws.MsgUserList,
 			Data: map[string]interface{}{
 				"users": userList,
 			},
@@ -37,8 +39,8 @@ func main() {
 
 		// Send current topic list to the new client
 		allTopics := hub.GetAllTopics()
-		topicListMsg := Message{
-			T: MsgSystem,
+		topicListMsg := ws.Message{
+			T: ws.MsgSystem,
 			Data: map[string]interface{}{
 				"type":   "topic_list_update",
 				"topics": allTopics,
@@ -47,17 +49,17 @@ func main() {
 		socket.SendMessage(topicListMsg)
 	})
 
-	hub.OnMessage(func(socket *Socket) {
+	hub.OnMessage(func(socket *ws.Socket) {
 		// log.Printf("Message from %s", socket.ID)
 	})
 
-	hub.OnClose(func(socket *Socket) {
+	hub.OnClose(func(socket *ws.Socket) {
 		log.Printf("Client disconnected: %s", socket.ID)
 
 		// Broadcast updated user list to all remaining clients
 		userList := hub.GetUserList()
-		userListMsg := Message{
-			T: MsgUserList,
+		userListMsg := ws.Message{
+			T: ws.MsgUserList,
 			Data: map[string]interface{}{
 				"users": userList,
 			},
@@ -65,14 +67,14 @@ func main() {
 		hub.BroadcastMessage(userListMsg)
 	})
 
-	hub.OnDisconnect(func(socket *Socket) {
+	hub.OnDisconnect(func(socket *ws.Socket) {
 		log.Printf("Client disconnect event: %s", socket.ID)
 	})
 
 	// Custom event handler example
-	hub.On("ping", func(socket *Socket) {
-		pongMsg := Message{
-			T:    MsgPong,
+	hub.On("ping", func(socket *ws.Socket) {
+		pongMsg := ws.Message{
+			T:    ws.MsgPong,
 			Data: map[string]int64{"timestamp": time.Now().Unix()},
 		}
 		socket.SendMessage(pongMsg)
@@ -83,8 +85,8 @@ func main() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
-			heartbeatMsg := Message{
-				T: MsgSystem,
+			heartbeatMsg := ws.Message{
+				T: ws.MsgSystem,
 				Data: map[string]interface{}{
 					"timestamp":   time.Now().Unix(),
 					"connections": server.GetConnectionCount(),
@@ -100,7 +102,7 @@ func main() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
-			if err := hub.storage.CleanupExpiredMessages(); err != nil {
+			if err := hub.Storage().CleanupExpiredMessages(); err != nil {
 				log.Printf("Error cleaning up expired messages: %v", err)
 			} else {
 				log.Println("Cleaned up expired offline messages")
@@ -115,8 +117,8 @@ func main() {
 			if message == "" {
 				message = "Test broadcast from HTTP endpoint"
 			}
-			broadcastMsg := Message{
-				T: MsgSystem,
+			broadcastMsg := ws.Message{
+				T: ws.MsgSystem,
 				Data: map[string]interface{}{
 					"message":   message,
 					"timestamp": time.Now().Unix(),
