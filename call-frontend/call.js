@@ -11,6 +11,13 @@ class WebRTCCallClient {
         this.isRecording = false;
         this.isScreenSharing = false;
         this.screenStream = null;
+        this.directCallId = null;
+        this.directCallState = null; // null, 'calling', 'ringing', 'active'
+        this.directCallPeer = null;
+
+        // Audio context for tones
+        this.audioContext = null;
+        this.currentTone = null;
 
         this.init();
     }
@@ -18,6 +25,7 @@ class WebRTCCallClient {
     init() {
         this.bindEvents();
         this.checkMediaSupport();
+        this.initAudioContext();
     }
 
     bindEvents() {
@@ -72,6 +80,93 @@ class WebRTCCallClient {
         } catch (error) {
             console.warn('Could not enumerate devices:', error);
         }
+    }
+
+    initAudioContext() {
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            // Resume audio context on user interaction
+            document.addEventListener('click', () => {
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+            }, { once: true });
+        } catch (error) {
+            console.warn('Web Audio API not supported:', error);
+        }
+    }
+
+    async playTone(frequency, duration = 1000, type = 'sine') {
+        if (!this.audioContext) return;
+
+        // Resume audio context if suspended
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+        }
+
+        this.stopTone();
+
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+        oscillator.type = type;
+
+        gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration / 1000);
+
+        oscillator.start();
+        oscillator.stop(this.audioContext.currentTime + duration / 1000);
+
+        this.currentTone = oscillator;
+    }
+
+    stopTone() {
+        if (this.currentTone) {
+            try {
+                this.currentTone.stop();
+            } catch (error) {
+                // Tone might already be stopped
+            }
+            this.currentTone = null;
+        }
+    }
+
+    playCallingTone() {
+        // Play calling tone (repeated beeps)
+        const playBeep = () => {
+            if (this.directCallState === 'calling') {
+                this.playTone(800, 200);
+                setTimeout(playBeep, 2000);
+            }
+        };
+        playBeep();
+    }
+
+    playRingtone() {
+        // Play ringtone (alternating frequencies)
+        const playRing = () => {
+            if (this.directCallState === 'ringing') {
+                this.playTone(800, 500);
+                setTimeout(() => {
+                    if (this.directCallState === 'ringing') {
+                        this.playTone(1200, 500);
+                        setTimeout(playRing, 2000);
+                    }
+                }, 500);
+            }
+        };
+        playRing();
+    }
+
+    playEndTone() {
+        // Play end call tone (descending tone)
+        this.playTone(800, 300);
+        setTimeout(() => this.playTone(600, 300), 150);
+        setTimeout(() => this.playTone(400, 500), 300);
     }
 
     async joinCall() {
@@ -310,6 +405,21 @@ class WebRTCCallClient {
             case 'recording-finished':
                 this.handleRecordingFinished(payload);
                 break;
+            case 'direct-call-invite':
+                this.handleDirectCallInvite(payload);
+                break;
+            case 'direct-call-accept':
+                this.handleDirectCallAccept(payload);
+                break;
+            case 'direct-call-reject':
+                this.handleDirectCallReject(payload);
+                break;
+            case 'direct-call-end':
+                this.handleDirectCallEnd(payload);
+                break;
+            case 'direct-call-ringing':
+                this.handleDirectCallRinging(payload);
+                break;
             case 'ack':
                 // Handle acknowledgment messages
                 if (payload.status === 'authenticated') {
@@ -341,6 +451,11 @@ class WebRTCCallClient {
             28: 'call-state-changed',
             29: 'recording-started',
             30: 'recording-finished',
+            31: 'direct-call-invite',
+            32: 'direct-call-accept',
+            33: 'direct-call-reject',
+            34: 'direct-call-end',
+            35: 'direct-call-ringing',
             8: 'error',
             9: 'ack'
         };
@@ -452,6 +567,90 @@ class WebRTCCallClient {
         this.isRecording = false;
         this.updateRecordingUI();
         this.showToast('Recording finished', 'success');
+    }
+
+    makeDirectCall(targetUserId, targetName) {
+        if (this.directCallState) {
+            this.showError('Already in a call');
+            return;
+        }
+
+        this.directCallId = this.generateMessageId();
+        this.directCallState = 'calling';
+        this.directCallPeer = targetUserId;
+
+        this.sendSignalingMessage('direct-call-invite', {
+            target_user_id: targetUserId,
+            caller_name: this.getCurrentUserName(),
+            call_id: this.directCallId
+        });
+
+        this.showOutgoingCallModal(targetName);
+    }
+
+    acceptDirectCall() {
+        if (this.directCallState !== 'ringing' || !this.directCallId) return;
+
+        this.stopTone();
+        this.sendSignalingMessage('direct-call-accept', {
+            call_id: this.directCallId
+        });
+
+        this.hideIncomingCallModal();
+        this.directCallState = 'active';
+        this.showToast('Call accepted!', 'success');
+        // Start WebRTC connection for direct call
+        this.startDirectCallConnection();
+    }
+
+    rejectDirectCall() {
+        if (this.directCallState !== 'ringing' || !this.directCallId) return;
+
+        this.stopTone();
+        this.sendSignalingMessage('direct-call-reject', {
+            call_id: this.directCallId
+        });
+
+        this.hideIncomingCallModal();
+        this.directCallState = null;
+        this.directCallId = null;
+    }
+
+    endDirectCall() {
+        if (!this.directCallState || !this.directCallId) return;
+
+        this.stopTone();
+        this.sendSignalingMessage('direct-call-end', {
+            call_id: this.directCallId
+        });
+
+        this.endDirectCallLocally();
+    }
+
+    endDirectCallLocally() {
+        this.directCallState = null;
+        this.directCallId = null;
+        this.directCallPeer = null;
+        this.hideIncomingCallModal();
+        this.hideOutgoingCallModal();
+        // Clean up WebRTC connections for direct call
+        this.cleanupDirectCallConnections();
+    }
+
+    startDirectCallConnection() {
+        // Initialize WebRTC connection for direct call
+        // This would be similar to the room-based connection but for direct peer
+        console.log('Starting direct call connection...');
+    }
+
+    cleanupDirectCallConnections() {
+        // Clean up any direct call specific connections
+        console.log('Cleaning up direct call connections...');
+    }
+
+    getCurrentUserName() {
+        // Get current user's display name
+        return document.getElementById('displayName').value || 'Anonymous';
     }
 
     createPeerConnection(participantId) {
@@ -572,10 +771,25 @@ class WebRTCCallClient {
                 <div class="name">${participant.display_name}</div>
                 <div class="role">${participant.role}</div>
             </div>
+            <button class="call-participant-btn bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg ml-2"
+                    data-user-id="${participant.user_id}"
+                    data-user-name="${participant.display_name}">
+                <i data-lucide="phone" class="w-4 h-4"></i>
+            </button>
         `;
 
         participantsList.appendChild(participantElement);
+
+        // Add event listener for call button
+        const callBtn = participantElement.querySelector('.call-participant-btn');
+        callBtn.addEventListener('click', (e) => {
+            const userId = e.currentTarget.getAttribute('data-user-id');
+            const userName = e.currentTarget.getAttribute('data-user-name');
+            this.makeDirectCall(userId, userName);
+        });
+
         this.updateParticipantCount();
+        lucide.createIcons();
     }
 
     removeParticipant(participantId) {
@@ -638,7 +852,11 @@ class WebRTCCallClient {
             'unmute': 22,
             'hold': 23,
             'dtmf': 24,
-            'leave': 27 // Using peer-left type for leave
+            'leave': 27, // Using peer-left type for leave
+            'direct-call-invite': 31,
+            'direct-call-accept': 32,
+            'direct-call-reject': 33,
+            'direct-call-end': 34,
         };
         return typeMap[type] || 3; // Default to system message
     }
@@ -883,10 +1101,17 @@ class WebRTCCallClient {
     }
 
     hangUp() {
-        // Send leave message
-        this.sendSignalingMessage('leave', {
-            call_id: this.roomId
-        });
+        // End direct call if active
+        if (this.directCallState) {
+            this.endDirectCall();
+        }
+
+        // Send leave message for room call
+        if (this.roomId) {
+            this.sendSignalingMessage('leave', {
+                call_id: this.roomId
+            });
+        }
 
         // Clean up
         this.cleanup();
@@ -899,13 +1124,28 @@ class WebRTCCallClient {
     }
 
     handleDisconnect() {
-        this.showError('Disconnected from server');
+        // End direct call if active
+        if (this.directCallState) {
+            this.endDirectCall();
+            this.showToast('Call disconnected', 'error');
+        } else {
+            this.showError('Disconnected from server');
+        }
+
         this.cleanup();
         document.getElementById('callScreen').classList.add('hidden');
         document.getElementById('setupScreen').classList.remove('hidden');
     }
 
     cleanup() {
+        // Stop any playing tones
+        this.stopTone();
+
+        // End direct call if active
+        if (this.directCallState) {
+            this.endDirectCall();
+        }
+
         // Close WebSocket
         if (this.ws) {
             this.ws.close();
@@ -935,6 +1175,11 @@ class WebRTCCallClient {
         document.getElementById('participantsList').innerHTML = '';
         document.getElementById('chatMessages').innerHTML = '';
         document.getElementById('participantCount').textContent = '1';
+
+        // Reset direct call state
+        this.directCallId = null;
+        this.directCallState = null;
+        this.directCallPeer = null;
     }
 
     generateRoomId() {
@@ -976,6 +1221,171 @@ class WebRTCCallClient {
         setTimeout(() => {
             toast.remove();
         }, 3000);
+    }
+
+    // Direct Call Methods
+    makeDirectCall(targetUserId, targetName) {
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+            this.showError('Not connected to server');
+            return;
+        }
+
+        this.directCallId = this.generateMessageId();
+        this.directCallState = 'calling';
+        this.directCallPeer = targetUserId;
+
+        this.sendSignalingMessage('direct-call-invite', {
+            target_user_id: targetUserId,
+            caller_name: this.getCurrentUserName(),
+            call_id: this.directCallId
+        });
+
+        this.showOutgoingCallModal(targetName);
+    }
+
+    acceptDirectCall() {
+        if (!this.directCallId) return;
+
+        this.sendSignalingMessage('direct-call-accept', {
+            call_id: this.directCallId
+        });
+
+        this.directCallState = 'active';
+        this.hideIncomingCallModal();
+        this.showToast('Call accepted!', 'success');
+        this.startDirectCallConnection();
+    }
+
+    rejectDirectCall() {
+        if (!this.directCallId) return;
+
+        this.sendSignalingMessage('direct-call-reject', {
+            call_id: this.directCallId
+        });
+
+        this.endDirectCall();
+        this.hideIncomingCallModal();
+    }
+
+    endDirectCall() {
+        if (this.directCallId) {
+            this.sendSignalingMessage('direct-call-end', {
+                call_id: this.directCallId
+            });
+        }
+
+        this.directCallState = null;
+        this.directCallId = null;
+        this.directCallPeer = null;
+        this.hideOutgoingCallModal();
+        this.hideIncomingCallModal();
+
+        // Clean up WebRTC
+        this.cleanupDirectCall();
+    }
+
+    startDirectCallConnection() {
+        // For direct calls, create a peer connection with the other party
+        // This is similar to room-based but with only one peer
+        if (this.directCallPeer) {
+            this.createPeerConnection(this.directCallPeer);
+        }
+    }
+
+    cleanupDirectCall() {
+        // Clean up peer connections for direct call
+        if (this.directCallPeer) {
+            this.removePeerConnection(this.directCallPeer);
+        }
+    }
+
+    getCurrentUserName() {
+        // Get current user's display name
+        const displayName = document.getElementById('displayName');
+        return displayName ? displayName.value.trim() || 'Anonymous' : 'Anonymous';
+    }
+
+    showIncomingCallModal(callerName) {
+        let modal = document.getElementById('incomingCallModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'incomingCallModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-slate-800 rounded-lg p-6 max-w-sm w-full mx-4">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="phone" class="w-8 h-8 text-white"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold text-white mb-2">Incoming Call</h3>
+                        <p class="text-slate-300 mb-6">${callerName} is calling you</p>
+                        <div class="flex space-x-4">
+                            <button id="rejectCallBtn" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-semibold">
+                                <i data-lucide="phone-off" class="w-5 h-5 inline mr-2"></i>
+                                Reject
+                            </button>
+                            <button id="acceptCallBtn" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold">
+                                <i data-lucide="phone" class="w-5 h-5 inline mr-2"></i>
+                                Accept
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Add event listeners
+            document.getElementById('acceptCallBtn').addEventListener('click', () => this.acceptDirectCall());
+            document.getElementById('rejectCallBtn').addEventListener('click', () => this.rejectDirectCall());
+
+            lucide.createIcons();
+        }
+        modal.classList.remove('hidden');
+    }
+
+    hideIncomingCallModal() {
+        const modal = document.getElementById('incomingCallModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    showOutgoingCallModal(targetName) {
+        let modal = document.getElementById('outgoingCallModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'outgoingCallModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-slate-800 rounded-lg p-6 max-w-sm w-full mx-4">
+                    <div class="text-center">
+                        <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="phone" class="w-8 h-8 text-white"></i>
+                        </div>
+                        <h3 class="text-xl font-semibold text-white mb-2">Calling...</h3>
+                        <p class="text-slate-300 mb-6">${targetName}</p>
+                        <button id="cancelCallBtn" class="bg-red-600 hover:bg-red-700 text-white py-3 px-6 rounded-lg font-semibold">
+                            <i data-lucide="phone-off" class="w-5 h-5 inline mr-2"></i>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            // Add event listener
+            document.getElementById('cancelCallBtn').addEventListener('click', () => this.endDirectCall());
+
+            lucide.createIcons();
+        }
+        modal.classList.remove('hidden');
+    }
+
+    hideOutgoingCallModal() {
+        const modal = document.getElementById('outgoingCallModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
     }
 }
 
