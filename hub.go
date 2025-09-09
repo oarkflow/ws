@@ -172,7 +172,6 @@ func (h *Hub) BroadcastMessageExcept(msg Message, excludeSocket *Socket) {
 				sentCount++
 			}
 		}
-		log.Printf("Broadcasting message type %d to %d clients", msg.T, sentCount)
 	}
 }
 

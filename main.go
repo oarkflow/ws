@@ -48,7 +48,7 @@ func main() {
 	})
 
 	hub.OnMessage(func(socket *Socket) {
-		log.Printf("Message from %s", socket.ID)
+		// log.Printf("Message from %s", socket.ID)
 	})
 
 	hub.OnClose(func(socket *Socket) {

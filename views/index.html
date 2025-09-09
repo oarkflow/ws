@@ -250,12 +250,12 @@
 
         <!-- Main Dashboard -->
         <div class="p-6 space-y-6">
-            <!-- Message Log -->
+            <!-- Messages -->
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-xl font-semibold text-slate-800 flex items-center">
                         <i data-lucide="message-square" class="w-5 h-5 mr-2 text-slate-600"></i>
-                        Message Log
+                        Messages
                     </h3>
                     <div class="flex items-center space-x-2">
                         <button id="clearLogBtn" class="px-3 py-1 text-slate-600 hover:text-slate-800 text-sm">
@@ -278,102 +278,95 @@
                 </div>
 
                 <div id="logContainer"
-                    class="h-96 overflow-y-auto custom-scrollbar bg-slate-50 rounded-lg p-4 space-y-3">
+                    class="h-80 overflow-y-auto custom-scrollbar bg-slate-50 rounded-lg p-4 space-y-3 mb-6">
                     <!-- Messages will be populated here -->
                 </div>
-            </div>
 
-            <!-- Message Composer -->
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-slate-800 flex items-center">
-                        <i data-lucide="edit-3" class="w-5 h-5 mr-2 text-slate-600"></i>
-                        Send Message
-                    </h3>
-                </div>
-
-                <!-- Message Type Selector -->
-                <div class="mb-4">
-                    <div class="flex space-x-2">
-                        <button
-                            class="message-type-btn active px-4 py-2 bg-brand-100 text-brand-700 rounded-lg text-sm font-medium"
-                            data-type="broadcast">
-                            <i data-lucide="globe" class="w-4 h-4 inline mr-1"></i>
-                            Broadcast
-                        </button>
-                        <button
-                            class="message-type-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-                            data-type="direct">
-                            <i data-lucide="user" class="w-4 h-4 inline mr-1"></i>
-                            Direct
-                        </button>
-                        <button
-                            class="message-type-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
-                            data-type="topic">
-                            <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
-                            Topic
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Message Input -->
-                <div class="mb-4">
-                    <div class="flex gap-3">
-                        <input type="text" id="messageInput" placeholder="Type your message..."
-                            class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
-                        <select id="recipientSelect"
-                            class="hidden px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
-                            <option value="">Select recipient...</option>
-                        </select>
-                        <select id="topicSelect"
-                            class="hidden px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
-                            <option value="">Select topic...</option>
-                        </select>
-                        <button id="sendBtn"
-                            class="px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors"
-                            disabled>
-                            <i data-lucide="send" class="w-4 h-4 inline mr-1"></i>
-                            Send
-                        </button>
-                    </div>
-                    <!-- Hidden input for message type -->
-                    <input type="hidden" id="messageType" value="broadcast">
-                </div>
-
-                <!-- File Upload -->
-                <div class="border-t border-slate-200 pt-4">
-                    <div class="flex items-center justify-between mb-3">
-                        <span class="text-sm font-medium text-slate-700">File Sharing</span>
-                        <button id="fileToggle" class="text-brand-600 hover:text-brand-700 text-sm">
-                            <i data-lucide="chevron-down" class="w-4 h-4 inline mr-1"></i>
-                            <span>Show Options</span>
-                        </button>
+                <!-- Message Composer Separator -->
+                <div class="border-t border-slate-200 pt-6">
+                    <!-- Message Type Selector -->
+                    <div class="mb-4">
+                        <div class="flex space-x-2">
+                            <button
+                                class="message-type-btn active px-4 py-2 bg-brand-100 text-brand-700 rounded-lg text-sm font-medium"
+                                data-type="broadcast">
+                                <i data-lucide="globe" class="w-4 h-4 inline mr-1"></i>
+                                Broadcast
+                            </button>
+                            <button
+                                class="message-type-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                                data-type="direct">
+                                <i data-lucide="user" class="w-4 h-4 inline mr-1"></i>
+                                Direct
+                            </button>
+                            <button
+                                class="message-type-btn px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors"
+                                data-type="topic">
+                                <i data-lucide="hash" class="w-4 h-4 inline mr-1"></i>
+                                Topic
+                            </button>
+                        </div>
                     </div>
 
-                    <div id="fileSection" class="hidden space-y-3">
+                    <!-- Message Input -->
+                    <div class="mb-4">
                         <div class="flex gap-3">
-                            <input type="file" id="fileInput"
-                                class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
-                            <select id="fileType"
-                                class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
-                                <option value="broadcast">Broadcast File</option>
-                                <option value="direct">Send to User</option>
-                                <option value="topic">Send to Topic</option>
-                            </select>
-                            <select id="fileRecipientSelect"
-                                class="hidden px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                            <input type="text" id="messageInput" placeholder="Type your message..."
+                                class="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                            <select id="recipientSelect"
+                                class="hidden px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
                                 <option value="">Select recipient...</option>
                             </select>
-                            <select id="fileTopicSelect"
-                                class="hidden px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                            <select id="topicSelect"
+                                class="hidden px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
                                 <option value="">Select topic...</option>
                             </select>
-                            <button id="sendFileBtn"
-                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                            <button id="sendBtn"
+                                class="px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition-colors"
                                 disabled>
-                                <i data-lucide="upload" class="w-4 h-4 inline mr-1"></i>
+                                <i data-lucide="send" class="w-4 h-4 inline mr-1"></i>
                                 Send
                             </button>
+                        </div>
+                        <!-- Hidden input for message type -->
+                        <input type="hidden" id="messageType" value="broadcast">
+                    </div>
+
+                    <!-- File Upload -->
+                    <div class="border-t border-slate-200 pt-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="text-sm font-medium text-slate-700">File Sharing</span>
+                            <button id="fileToggle" class="text-brand-600 hover:text-brand-700 text-sm">
+                                <i data-lucide="chevron-down" class="w-4 h-4 inline mr-1"></i>
+                                <span>Show Options</span>
+                            </button>
+                        </div>
+
+                        <div id="fileSection" class="hidden space-y-3">
+                            <div class="flex gap-3">
+                                <input type="file" id="fileInput"
+                                    class="flex-1 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                <select id="fileType"
+                                    class="px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                    <option value="broadcast">Broadcast File</option>
+                                    <option value="direct">Send to User</option>
+                                    <option value="topic">Send to Topic</option>
+                                </select>
+                                <select id="fileRecipientSelect"
+                                    class="hidden px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                    <option value="">Select recipient...</option>
+                                </select>
+                                <select id="fileTopicSelect"
+                                    class="hidden px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                                    <option value="">Select topic...</option>
+                                </select>
+                                <button id="sendFileBtn"
+                                    class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                                    disabled>
+                                    <i data-lucide="upload" class="w-4 h-4 inline mr-1"></i>
+                                    Send
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

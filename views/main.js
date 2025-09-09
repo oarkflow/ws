@@ -177,10 +177,6 @@ function initializeWebSocket() {
                     'Reconnecting',
                     'Reconnected'
                 ];
-
-                if (!systemMessages.some(sysMsg => message.includes(sysMsg))) {
-                    logMessage(`Published to ${data.topic}: ${message}`, 'sent');
-                }
             }
         }
     });

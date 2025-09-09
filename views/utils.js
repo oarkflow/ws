@@ -99,11 +99,12 @@ export function logMessage(message, type = 'received') {
     }
 
     const div = document.createElement('div');
-    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white flex';
+    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white flex w-fit';
 
     // Align messages based on type
     if (type === 'sent') {
         div.classList.add('justify-end');
+        div.classList.add('place-self-end');
     } else {
         div.classList.add('justify-start');
     }
@@ -145,11 +146,12 @@ export function logMessage(message, type = 'received') {
 
 export function logFileMessage(message, type = 'received', fileUrl = null, buttonText = 'Download') {
     const div = document.createElement('div');
-    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white flex';
+    div.className = 'p-3 rounded-lg text-sm mb-3 fade-in border border-gray-200 bg-white flex w-fit';
 
     // Align messages based on type
     if (type === 'sent') {
         div.classList.add('justify-end');
+        div.classList.add('place-self-end');
     } else {
         div.classList.add('justify-start');
     }

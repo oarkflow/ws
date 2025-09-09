@@ -594,9 +594,6 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 		// Send to specific socket
 		s.hub.Emit(socket.pendingFile.To, "file", fileMsg.Data)
 		s.hub.EmitBinary(socket.pendingFile.To, payload)
-		// Also send to sender so they can see it in their chat log
-		socket.Send("file", fileMsg.Data)
-		socket.conn.writeBinaryAsync(payload)
 		log.Printf("Sent binary file to %s from %s", socket.pendingFile.To, socket.ID)
 	} else if socket.pendingFile.Topic != "" {
 		// Send to topic subscribers (excluding sender since they already know they sent it)
