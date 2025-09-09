@@ -68,6 +68,18 @@ func msgTypeToString(msgType int) string {
 		return "hold"
 	case 24:
 		return "dtmf"
+	case 25:
+		return "joined"
+	case 26:
+		return "peer-joined"
+	case 27:
+		return "peer-left"
+	case 28:
+		return "call-state-changed"
+	case 29:
+		return "recording-started"
+	case 30:
+		return "recording-finished"
 	default:
 		return "unknown"
 	}
@@ -87,8 +99,10 @@ func NewManager(db ws.Database, hub *ws.Hub) *Manager {
 func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 	socket := m.hub.GetSocket(socketID)
 	if socket == nil {
+		log.Printf("Socket not found: %s", socketID)
 		return
 	}
+
 	var signalingMsg ws.SignalingMessage
 	if data, ok := msg.Data.(map[string]interface{}); ok {
 		signalingMsg.Type = data["type"].(string)
@@ -100,6 +114,8 @@ func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 		signalingMsg.ID = msg.ID
 		signalingMsg.Payload = msg.Data
 	}
+
+	log.Printf("Handling signaling message: type=%s, socket=%s", signalingMsg.Type, socketID)
 
 	switch signalingMsg.Type {
 	case "auth":
@@ -118,15 +134,27 @@ func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 		m.handleHold(socket, signalingMsg)
 	case "dtmf":
 		m.handleDTMF(socket, signalingMsg)
+	default:
+		log.Printf("Unknown signaling message type: %s", signalingMsg.Type)
 	}
 }
 
 // handleAuth handles authentication
 func (m *Manager) handleAuth(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.AuthPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		m.sendError(socket, "Invalid auth payload format")
+		return
+	}
+
+	token, ok := payload["token"].(string)
+	if !ok {
+		m.sendError(socket, "Missing token in auth payload")
+		return
+	}
 
 	// Validate JWT token
-	userID, err := m.validateToken(payload.Token)
+	userID, err := m.validateToken(token)
 	if err != nil {
 		m.sendError(socket, "Invalid token")
 		return
@@ -148,7 +176,25 @@ func (m *Manager) handleAuth(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleJoin handles room joining
 func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.JoinPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		m.sendError(socket, "Invalid join payload format")
+		return
+	}
+
+	room, ok := payload["room"].(string)
+	if !ok {
+		m.sendError(socket, "Missing room in join payload")
+		return
+	}
+
+	displayName, ok := payload["display_name"].(string)
+	if !ok {
+		m.sendError(socket, "Missing display_name in join payload")
+		return
+	}
+
+	capabilities, _ := payload["capabilities"].(map[string]interface{})
 
 	userID := socket.GetProperty("user_id")
 	if userID == nil {
@@ -157,25 +203,29 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 	}
 
 	// Create or get room
-	room := m.getOrCreateRoom(payload.Room)
+	roomObj := m.getOrCreateRoom(room)
+	if roomObj == nil {
+		m.sendError(socket, "Failed to create or join room")
+		return
+	}
 
 	// Create peer
 	peer := &Peer{
 		ID:          socket.ID,
 		UserID:      userID.(string),
-		RoomID:      payload.Room,
+		RoomID:      room,
 		Socket:      socket,
 		Role:        "participant", // Default role
-		DisplayName: payload.DisplayName,
+		DisplayName: displayName,
 		JoinedAt:    time.Now(),
 		IsMuted:     false,
 		IsOnHold:    false,
 	}
 
 	// Add peer to room
-	room.mu.Lock()
-	room.Participants[socket.ID] = peer
-	room.mu.Unlock()
+	roomObj.mu.Lock()
+	roomObj.Participants[socket.ID] = peer
+	roomObj.mu.Unlock()
 
 	// Store peer
 	m.mu.Lock()
@@ -184,14 +234,14 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 
 	// Add participant to database
 	if m.db != nil {
-		_, err := m.db.AddParticipant(room.CallID, userID.(string), peer.Role, "", payload.Capabilities)
+		_, err := m.db.AddParticipant(roomObj.CallID, userID.(string), peer.Role, "", capabilities)
 		if err != nil {
 			log.Printf("Error adding participant: %v", err)
 		}
 	}
 
 	// Send joined message
-	roomState := m.getRoomState(room)
+	roomState := m.getRoomState(roomObj)
 	joinedMsg := ws.Message{
 		T: ws.MsgJoined,
 		Data: map[string]interface{}{
@@ -213,12 +263,25 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 			},
 		},
 	}
-	m.broadcastToRoomExceptPtr(room, peerJoinedMsg, socket.ID)
+	m.broadcastToRoomExceptPtr(roomObj, peerJoinedMsg, socket.ID)
 }
 
 // handleOffer handles WebRTC offer
 func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.SDPPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	sdp, ok := payload["sdp"].(string)
+	if !ok {
+		return
+	}
+
+	callID, ok := payload["call_id"].(string)
+	if !ok {
+		callID = ""
+	}
 
 	peer := m.getPeer(socket.ID)
 	if peer == nil {
@@ -229,8 +292,8 @@ func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
 	offerMsg := ws.Message{
 		T: ws.MsgOffer,
 		Data: map[string]interface{}{
-			"sdp":     payload.SDP,
-			"call_id": payload.CallID,
+			"sdp":     sdp,
+			"call_id": callID,
 			"from":    socket.ID,
 		},
 	}
@@ -239,7 +302,20 @@ func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleAnswer handles WebRTC answer
 func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.SDPPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	sdp, ok := payload["sdp"].(string)
+	if !ok {
+		return
+	}
+
+	callID, ok := payload["call_id"].(string)
+	if !ok {
+		callID = ""
+	}
 
 	peer := m.getPeer(socket.ID)
 	if peer == nil {
@@ -250,8 +326,8 @@ func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
 	answerMsg := ws.Message{
 		T: ws.MsgAnswer,
 		Data: map[string]interface{}{
-			"sdp":     payload.SDP,
-			"call_id": payload.CallID,
+			"sdp":     sdp,
+			"call_id": callID,
 			"from":    socket.ID,
 		},
 	}
@@ -260,7 +336,25 @@ func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleICECandidate handles ICE candidates
 func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.ICEPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	candidate, ok := payload["candidate"].(string)
+	if !ok {
+		return
+	}
+
+	sdpMid, ok := payload["sdpMid"].(string)
+	if !ok {
+		sdpMid = ""
+	}
+
+	sdpMLineIndex, ok := payload["sdpMLineIndex"].(float64)
+	if !ok {
+		sdpMLineIndex = 0
+	}
 
 	peer := m.getPeer(socket.ID)
 	if peer == nil {
@@ -271,9 +365,9 @@ func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage)
 	iceMsg := ws.Message{
 		T: ws.MsgIceCandidate,
 		Data: map[string]interface{}{
-			"candidate":     payload.Candidate,
-			"sdpMid":        payload.SDPMid,
-			"sdpMLineIndex": payload.SDPMLineIndex,
+			"candidate":     candidate,
+			"sdpMid":        sdpMid,
+			"sdpMLineIndex": int(sdpMLineIndex),
 			"from":          socket.ID,
 		},
 	}
@@ -282,7 +376,20 @@ func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage)
 
 // handleMute handles mute/unmute
 func (m *Manager) handleMute(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.ControlPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	callID, ok := payload["call_id"].(string)
+	if !ok {
+		callID = ""
+	}
+
+	track, ok := payload["track"].(string)
+	if !ok {
+		track = "audio"
+	}
 
 	peer := m.getPeer(socket.ID)
 	if peer == nil {
@@ -296,8 +403,8 @@ func (m *Manager) handleMute(socket *ws.Socket, msg ws.SignalingMessage) {
 	muteMsg := ws.Message{
 		T: ws.MsgMute,
 		Data: map[string]interface{}{
-			"call_id": payload.CallID,
-			"track":   payload.Track,
+			"call_id": callID,
+			"track":   track,
 			"muted":   isMuted,
 			"from":    socket.ID,
 		},
@@ -307,7 +414,20 @@ func (m *Manager) handleMute(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleHold handles call hold
 func (m *Manager) handleHold(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.ControlPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	callID, ok := payload["call_id"].(string)
+	if !ok {
+		callID = ""
+	}
+
+	track, ok := payload["track"].(string)
+	if !ok {
+		track = "audio"
+	}
 
 	peer := m.getPeer(socket.ID)
 	if peer == nil {
@@ -320,8 +440,8 @@ func (m *Manager) handleHold(socket *ws.Socket, msg ws.SignalingMessage) {
 	holdMsg := ws.Message{
 		T: ws.MsgHold,
 		Data: map[string]interface{}{
-			"call_id": payload.CallID,
-			"track":   payload.Track,
+			"call_id": callID,
+			"track":   track,
 			"from":    socket.ID,
 		},
 	}
@@ -330,7 +450,20 @@ func (m *Manager) handleHold(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleDTMF handles DTMF tones
 func (m *Manager) handleDTMF(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload := msg.Payload.(ws.DTMFPayload)
+	payload, ok := msg.Payload.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	callID, ok := payload["call_id"].(string)
+	if !ok {
+		callID = ""
+	}
+
+	tones, ok := payload["tones"].(string)
+	if !ok {
+		return
+	}
 
 	peer := m.getPeer(socket.ID)
 	if peer == nil {
@@ -341,8 +474,8 @@ func (m *Manager) handleDTMF(socket *ws.Socket, msg ws.SignalingMessage) {
 	dtmfMsg := ws.Message{
 		T: ws.MsgDTMF,
 		Data: map[string]interface{}{
-			"call_id": payload.CallID,
-			"tones":   payload.Tones,
+			"call_id": callID,
+			"tones":   tones,
 			"from":    socket.ID,
 		},
 	}

@@ -52,11 +52,10 @@ class WebRTCCallClient {
     }
 
     validateJoinButton() {
-        const token = document.getElementById('authToken').value.trim();
         const name = document.getElementById('displayName').value.trim();
         const joinBtn = document.getElementById('joinBtn');
 
-        joinBtn.disabled = !token || !name;
+        joinBtn.disabled = !name;
     }
 
     async checkMediaSupport() {
@@ -76,14 +75,14 @@ class WebRTCCallClient {
     }
 
     async joinCall() {
-        const authToken = document.getElementById('authToken').value.trim();
+        const authToken = document.getElementById('authToken').value.trim() || 'demo-token';
         const roomId = document.getElementById('roomId').value.trim() || this.generateRoomId();
         const displayName = document.getElementById('displayName').value.trim();
         const audioEnabled = document.getElementById('audioEnabled').checked;
         const videoEnabled = document.getElementById('videoEnabled').checked;
 
-        if (!authToken || !displayName) {
-            this.showError('Please fill in all required fields');
+        if (!displayName) {
+            this.showError('Please enter your display name');
             return;
         }
 
@@ -130,7 +129,11 @@ class WebRTCCallClient {
 
         } catch (error) {
             console.error('Failed to join call:', error);
-            this.showError('Failed to join call: ' + error.message);
+            const errorMessage = error.message || 'Unknown error occurred';
+            this.showError('Failed to join call: ' + errorMessage);
+
+            // Clean up on error
+            this.cleanup();
         }
     }
 
@@ -139,30 +142,53 @@ class WebRTCCallClient {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.host}/ws`;
 
+            console.log('Connecting to WebSocket:', wsUrl);
             this.ws = new WebSocket(wsUrl);
+
+            let connectionTimeout;
 
             this.ws.onopen = () => {
                 console.log('Connected to signaling server');
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                }
                 resolve();
             };
 
             this.ws.onmessage = (event) => {
-                this.handleSignalingMessage(JSON.parse(event.data));
+                try {
+                    this.handleSignalingMessage(JSON.parse(event.data));
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
             };
 
-            this.ws.onclose = () => {
-                console.log('Disconnected from signaling server');
+            this.ws.onclose = (event) => {
+                console.log('Disconnected from signaling server:', event.code, event.reason);
+                this.ws = null;
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                }
                 this.handleDisconnect();
             };
 
             this.ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
-                reject(error);
+                this.ws = null;
+                if (connectionTimeout) {
+                    clearTimeout(connectionTimeout);
+                }
+                reject(new Error('WebSocket connection failed'));
             };
 
             // Timeout after 10 seconds
-            setTimeout(() => {
-                if (this.ws.readyState !== WebSocket.OPEN) {
+            connectionTimeout = setTimeout(() => {
+                if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+                    console.error('WebSocket connection timeout');
+                    if (this.ws) {
+                        this.ws.close();
+                        this.ws = null;
+                    }
                     reject(new Error('Connection timeout'));
                 }
             }, 10000);
@@ -518,12 +544,20 @@ class WebRTCCallClient {
 
     sendSignalingMessage(type, payload) {
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            const message = {
-                t: this.stringToMsgType(type), // Use numeric type that backend expects
-                data: payload,
-                id: this.generateMessageId()
-            };
-            this.ws.send(JSON.stringify(message));
+            try {
+                const message = {
+                    t: this.stringToMsgType(type), // Use numeric type that backend expects
+                    data: payload,
+                    id: this.generateMessageId()
+                };
+                this.ws.send(JSON.stringify(message));
+                console.log('Sent signaling message:', type, message);
+            } catch (error) {
+                console.error('Error sending WebSocket message:', error);
+                this.showError('Failed to send message to server');
+            }
+        } else {
+            console.warn('WebSocket not connected, cannot send message:', type);
         }
     }
 
