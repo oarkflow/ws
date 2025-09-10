@@ -22,12 +22,9 @@ type AnomalyDetectionRules struct {
 }
 
 type GlobalRules struct {
-	DDOSDetection             DDOSDetection             `json:"ddosDetection"`
-	MITMDetection             MITMDetection             `json:"mitmDetection"`
-	BusinessHoursDetection    BusinessHoursDetection    `json:"businessHoursDetection"`
-	BusinessRegionDetection   BusinessRegionDetection   `json:"businessRegionDetection"`
-	ProtectedRouteDetection   ProtectedRouteDetection   `json:"protectedRouteDetection"`
-	SessionHijackingDetection SessionHijackingDetection `json:"sessionHijackingDetection"`
+	DDOSDetection DDOSDetection   `json:"ddosDetection"`
+	MITMDetection MITMDetection   `json:"mitmDetection"`
+	Rules         map[string]Rule `json:"rules"`
 }
 
 type DDOSDetection struct {
@@ -41,35 +38,6 @@ type MITMDetection struct {
 	Indicators           []string `json:"indicators"`
 	Actions              []Action `json:"actions"`
 	SuspiciousUserAgents []string `json:"suspiciousUserAgents,omitempty"`
-}
-
-type BusinessHoursDetection struct {
-	Enabled   bool     `json:"enabled"`
-	StartTime string   `json:"startTime"`
-	EndTime   string   `json:"endTime"`
-	Timezone  string   `json:"timezone"`
-	Actions   []Action `json:"actions"`
-}
-
-type BusinessRegionDetection struct {
-	Enabled          bool     `json:"enabled"`
-	AllowedCountries []string `json:"allowedCountries"`
-	AllowedIPRanges  []string `json:"allowedIPRanges"`
-	Actions          []Action `json:"actions"`
-}
-
-type ProtectedRouteDetection struct {
-	Enabled          bool     `json:"enabled"`
-	ProtectedRoutes  []string `json:"protectedRoutes"`
-	LoginCheckHeader string   `json:"loginCheckHeader"`
-	Actions          []Action `json:"actions"`
-}
-
-type SessionHijackingDetection struct {
-	Enabled               bool     `json:"enabled"`
-	MaxConcurrentSessions int      `json:"maxConcurrentSessions"`
-	SessionTimeout        string   `json:"sessionTimeout"`
-	Actions               []Action `json:"actions"`
 }
 
 type EndpointRules struct {
@@ -93,6 +61,13 @@ type Action struct {
 	JitterRangeMs []int    `json:"jitterRangeMs,omitempty"`
 	Trigger       *Trigger `json:"trigger,omitempty"`
 	Response      Response `json:"response"`
+}
+
+type Rule struct {
+	Type    string                 `json:"type"`
+	Enabled bool                   `json:"enabled"`
+	Params  map[string]interface{} `json:"params"`
+	Actions []Action               `json:"actions"`
 }
 
 type Trigger map[string]interface{}
@@ -190,14 +165,6 @@ func (re *RuleEngine) getCountryFromIP(ip string) string {
 	return "US"
 }
 
-func (re *RuleEngine) isLoggedIn(c *fiber.Ctx) bool {
-	header := re.config.AnomalyDetectionRules.Global.ProtectedRouteDetection.LoginCheckHeader
-	if header == "" {
-		header = "Authorization"
-	}
-	return c.Get(header) != ""
-}
-
 func (re *RuleEngine) checkGlobalDDOS(clientIP string) *Action {
 	if !re.config.AnomalyDetectionRules.Global.DDOSDetection.Enabled {
 		return nil
@@ -281,113 +248,139 @@ func (re *RuleEngine) hasSuspiciousUserAgent(c *fiber.Ctx) bool {
 	return false
 }
 
-func (re *RuleEngine) checkBusinessHours(c *fiber.Ctx) *Action {
-	if !re.config.AnomalyDetectionRules.Global.BusinessHoursDetection.Enabled {
-		return nil
-	}
-	endpoint := c.Path()
-	if endpoint != "/api/login" {
-		return nil
-	}
-	now := time.Now()
-	loc, err := time.LoadLocation(re.config.AnomalyDetectionRules.Global.BusinessHoursDetection.Timezone)
-	if err != nil {
-		return nil
-	}
-	localNow := now.In(loc)
-	start, _ := time.Parse("15:04", re.config.AnomalyDetectionRules.Global.BusinessHoursDetection.StartTime)
-	end, _ := time.Parse("15:04", re.config.AnomalyDetectionRules.Global.BusinessHoursDetection.EndTime)
-	startTime := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), start.Hour(), start.Minute(), 0, 0, loc)
-	endTime := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), end.Hour(), end.Minute(), 0, 0, loc)
-	if localNow.Before(startTime) || localNow.After(endTime) {
-		return &re.config.AnomalyDetectionRules.Global.BusinessHoursDetection.Actions[0]
-	}
-	return nil
-}
-
-func (re *RuleEngine) checkBusinessRegion(c *fiber.Ctx) *Action {
-	if !re.config.AnomalyDetectionRules.Global.BusinessRegionDetection.Enabled {
-		return nil
-	}
-	endpoint := c.Path()
-	if endpoint != "/api/login" {
-		return nil
-	}
-	clientIP := re.getClientIP(c)
-	country := re.getCountryFromIP(clientIP)
-	allowed := re.config.AnomalyDetectionRules.Global.BusinessRegionDetection.AllowedCountries
-	for _, a := range allowed {
-		if a == country {
-			return nil
+var ruleHandlers = map[string]func(re *RuleEngine, c *fiber.Ctx, params map[string]interface{}) bool{
+	"businessHours": func(re *RuleEngine, c *fiber.Ctx, params map[string]interface{}) bool {
+		endpoint := c.Path()
+		if endpoint != "/api/login" {
+			return false
 		}
-	}
-	// Check IP ranges if needed, but placeholder
-	return &re.config.AnomalyDetectionRules.Global.BusinessRegionDetection.Actions[0]
-}
-
-func (re *RuleEngine) checkProtectedRoute(c *fiber.Ctx) *Action {
-	if !re.config.AnomalyDetectionRules.Global.ProtectedRouteDetection.Enabled {
-		return nil
-	}
-	endpoint := c.Path()
-	protected := false
-	for _, route := range re.config.AnomalyDetectionRules.Global.ProtectedRouteDetection.ProtectedRoutes {
-		if strings.HasPrefix(endpoint, route) {
-			protected = true
-			break
+		now := time.Now()
+		timezone, ok := params["timezone"].(string)
+		if !ok {
+			return false
 		}
-	}
-	if !protected {
-		return nil
-	}
-	if !re.isLoggedIn(c) {
-		return &re.config.AnomalyDetectionRules.Global.ProtectedRouteDetection.Actions[0]
-	}
-	return nil
-}
-
-func (re *RuleEngine) checkSessionHijacking(c *fiber.Ctx) *Action {
-	userID := re.getUserID(c)
-	if userID == "" {
-		return nil
-	}
-	userAgent := c.Get("User-Agent")
-	re.tracker.mu.Lock()
-	defer re.tracker.mu.Unlock()
-	sessions, exists := re.tracker.userSessions[userID]
-	if !exists {
-		sessions = []*SessionInfo{}
-	}
-	now := time.Now()
-	timeout, _ := time.ParseDuration(re.config.AnomalyDetectionRules.Global.SessionHijackingDetection.SessionTimeout)
-	// Clean old sessions
-	validSessions := []*SessionInfo{}
-	for _, s := range sessions {
-		if now.Sub(s.Created) < timeout {
-			validSessions = append(validSessions, s)
+		loc, err := time.LoadLocation(timezone)
+		if err != nil {
+			return false
 		}
-	}
-	// Check if this UserAgent exists
-	found := false
-	for _, s := range validSessions {
-		if s.UA == userAgent {
-			found = true
-			break
+		localNow := now.In(loc)
+		startTimeStr, ok := params["startTime"].(string)
+		if !ok {
+			return false
 		}
-	}
-	if !found {
-		if len(validSessions) >= re.config.AnomalyDetectionRules.Global.SessionHijackingDetection.MaxConcurrentSessions {
-			actions := re.config.AnomalyDetectionRules.Global.SessionHijackingDetection.Actions
-			if len(actions) > 0 {
-				return &actions[0]
+		endTimeStr, ok := params["endTime"].(string)
+		if !ok {
+			return false
+		}
+		start, _ := time.Parse("15:04", startTimeStr)
+		end, _ := time.Parse("15:04", endTimeStr)
+		startTime := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), start.Hour(), start.Minute(), 0, 0, loc)
+		endTime := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), end.Hour(), end.Minute(), 0, 0, loc)
+		return localNow.Before(startTime) || localNow.After(endTime)
+	},
+	"businessRegion": func(re *RuleEngine, c *fiber.Ctx, params map[string]interface{}) bool {
+		endpoint := c.Path()
+		if endpoint != "/api/login" {
+			return false
+		}
+		clientIP := re.getClientIP(c)
+		country := re.getCountryFromIP(clientIP)
+		allowedCountries, ok := params["allowedCountries"].([]interface{})
+		if !ok {
+			return false
+		}
+		for _, a := range allowedCountries {
+			if aStr, ok := a.(string); ok && aStr == country {
+				return false
 			}
 		}
-		validSessions = append(validSessions, &SessionInfo{
-			UA:      userAgent,
-			Created: now,
-		})
+		return true
+	},
+	"protectedRoute": func(re *RuleEngine, c *fiber.Ctx, params map[string]interface{}) bool {
+		endpoint := c.Path()
+		protectedRoutes, ok := params["protectedRoutes"].([]interface{})
+		if !ok {
+			return false
+		}
+		protected := false
+		for _, r := range protectedRoutes {
+			if rStr, ok := r.(string); ok && strings.HasPrefix(endpoint, rStr) {
+				protected = true
+				break
+			}
+		}
+		if !protected {
+			return false
+		}
+		header, ok := params["loginCheckHeader"].(string)
+		if !ok {
+			header = "Authorization"
+		}
+		return c.Get(header) == ""
+	},
+	"sessionHijacking": func(re *RuleEngine, c *fiber.Ctx, params map[string]interface{}) bool {
+		userID := re.getUserID(c)
+		if userID == "" {
+			return false
+		}
+		userAgent := c.Get("User-Agent")
+		re.tracker.mu.Lock()
+		defer re.tracker.mu.Unlock()
+		sessions, exists := re.tracker.userSessions[userID]
+		if !exists {
+			sessions = []*SessionInfo{}
+		}
+		now := time.Now()
+		sessionTimeoutStr, ok := params["sessionTimeout"].(string)
+		if !ok {
+			sessionTimeoutStr = "24h"
+		}
+		timeout, _ := time.ParseDuration(sessionTimeoutStr)
+		// Clean old sessions
+		validSessions := []*SessionInfo{}
+		for _, s := range sessions {
+			if now.Sub(s.Created) < timeout {
+				validSessions = append(validSessions, s)
+			}
+		}
+		// Check if this UserAgent exists
+		found := false
+		for _, s := range validSessions {
+			if s.UA == userAgent {
+				found = true
+				break
+			}
+		}
+		maxConcurrent, ok := params["maxConcurrentSessions"].(float64)
+		if !ok {
+			maxConcurrent = 3
+		}
+		if !found {
+			if len(validSessions) >= int(maxConcurrent) {
+				return true
+			}
+			validSessions = append(validSessions, &SessionInfo{
+				UA:      userAgent,
+				Created: now,
+			})
+		}
+		re.tracker.userSessions[userID] = validSessions
+		return false
+	},
+}
+
+func (re *RuleEngine) checkRule(c *fiber.Ctx, rule Rule) *Action {
+	if !rule.Enabled {
+		return nil
 	}
-	re.tracker.userSessions[userID] = validSessions
+	handler, exists := ruleHandlers[rule.Type]
+	if !exists {
+		return nil
+	}
+	triggered := handler(re, c, rule.Params)
+	if triggered && len(rule.Actions) > 0 {
+		return &rule.Actions[0]
+	}
 	return nil
 }
 
@@ -682,17 +675,10 @@ func (re *RuleEngine) AnomalyDetectionMiddleware() fiber.Handler {
 		if action := re.checkGlobalDDOS(clientIP); action != nil {
 			return re.applyAction(c, action, clientIP)
 		}
-		if action := re.checkBusinessHours(c); action != nil {
-			return re.applyAction(c, action, clientIP)
-		}
-		if action := re.checkBusinessRegion(c); action != nil {
-			return re.applyAction(c, action, clientIP)
-		}
-		if action := re.checkProtectedRoute(c); action != nil {
-			return re.applyAction(c, action, clientIP)
-		}
-		if action := re.checkSessionHijacking(c); action != nil {
-			return re.applyAction(c, action, clientIP)
+		for _, rule := range re.config.AnomalyDetectionRules.Global.Rules {
+			if action := re.checkRule(c, rule); action != nil {
+				return re.applyAction(c, action, clientIP)
+			}
 		}
 		if action := re.checkEndpointRateLimit(c, clientIP, endpoint); action != nil {
 			return re.applyAction(c, action, clientIP)
