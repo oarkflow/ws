@@ -41,6 +41,66 @@
                         }
                     }
                 ]
+            },
+            "businessHoursDetection": {
+                "enabled": true,
+                "startTime": "09:00",
+                "endTime": "17:00",
+                "timezone": "UTC",
+                "actions": [
+                    {
+                        "type": "temporary_ban",
+                        "duration": "1h",
+                        "response": {
+                            "status": 403,
+                            "message": "Login attempted outside business hours."
+                        }
+                    }
+                ]
+            },
+            "businessRegionDetection": {
+                "enabled": true,
+                "allowedCountries": [ "US", "CA" ],
+                "allowedIPRanges": [ ],
+                "actions": [
+                    {
+                        "type": "temporary_ban",
+                        "duration": "1h",
+                        "response": {
+                            "status": 403,
+                            "message": "Login attempted from unauthorized region."
+                        }
+                    }
+                ]
+            },
+            "protectedRouteDetection": {
+                "enabled": true,
+                "protectedRoutes": [ "/api/protected" ],
+                "loginCheckHeader": "Authorization",
+                "actions": [
+                    {
+                        "type": "rate_limit",
+                        "response": {
+                            "status": 401,
+                            "message": "Unauthorized access to protected route."
+                        }
+                    }
+                ]
+            },
+            "sessionHijackingDetection": {
+                "enabled": true,
+                "maxConcurrentSessions": 1,
+                "sessionTimeout": "24h",
+                "actions": [
+                    {
+                        "type": "temporary_ban",
+                        "duration": "30m",
+                        "response": {
+                            "status": 403,
+                            "message": "Session hijacking detected."
+                        }
+                    }
+                ]
             }
         },
         "apiEndpoints": {
