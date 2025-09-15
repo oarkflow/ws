@@ -41,15 +41,15 @@ const (
 
 // Message represents the unified message format
 type Message struct {
-	T        int         `json:"t"`                  // Message type
-	Topic    string      `json:"topic,omitempty"`    // Topic for broadcasts
-	To       string      `json:"to,omitempty"`       // Recipient for private messages
-	Data     interface{} `json:"data,omitempty"`     // Message data
-	Code     int         `json:"code,omitempty"`     // Error/system code
-	ID       string      `json:"id,omitempty"`       // Message ID for tracking
-	ThreadID string      `json:"threadId,omitempty"` // Thread ID for threaded conversations
-	ReplyTo  string      `json:"replyTo,omitempty"`  // Message ID being replied to
-	From     string      `json:"from,omitempty"`     // Sender alias/username
+	T        int    `json:"t"`                  // Message type
+	Topic    string `json:"topic,omitempty"`    // Topic for broadcasts
+	To       string `json:"to,omitempty"`       // Recipient for private messages
+	Data     any    `json:"data,omitempty"`     // Message data
+	Code     int    `json:"code,omitempty"`     // Error/system code
+	ID       string `json:"id,omitempty"`       // Message ID for tracking
+	ThreadID string `json:"threadId,omitempty"` // Thread ID for threaded conversations
+	ReplyTo  string `json:"replyTo,omitempty"`  // Message ID being replied to
+	From     string `json:"from,omitempty"`     // Sender alias/username
 }
 
 // stringToMsgType converts string event names to numeric types
@@ -197,7 +197,7 @@ func (s *Socket) SendMessage(msg Message) {
 }
 
 // Send sends a message to the socket using the unified format with a string event
-func (s *Socket) Send(event string, data interface{}) {
+func (s *Socket) Send(event string, data any) {
 	if s.isBanned {
 		return
 	}
@@ -216,6 +216,6 @@ func (s *Socket) Send(event string, data interface{}) {
 }
 
 // Emit emits a custom event to the socket
-func (s *Socket) Emit(event string, data interface{}) {
+func (s *Socket) Emit(event string, data any) {
 	s.Send(event, data)
 }

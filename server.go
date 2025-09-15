@@ -161,22 +161,22 @@ func (s *Server) OnDisconnect(handler Handler) {
 }
 
 // Broadcast sends a message to all connected sockets
-func (s *Server) Broadcast(event string, data interface{}) {
+func (s *Server) Broadcast(event string, data any) {
 	s.hub.Broadcast(event, data)
 }
 
 // BroadcastExcept sends a message to all connected sockets except the sender
-func (s *Server) BroadcastExcept(event string, data interface{}, excludeSocket *Socket) {
+func (s *Server) BroadcastExcept(event string, data any, excludeSocket *Socket) {
 	s.hub.BroadcastExcept(event, data, excludeSocket)
 }
 
 // Notify sends a message to specific sockets
-func (s *Server) Notify(socketIDs []string, event string, data interface{}) {
+func (s *Server) Notify(socketIDs []string, event string, data any) {
 	s.hub.Notify(socketIDs, event, data)
 }
 
 // Emit sends a message to a single socket
-func (s *Server) Emit(socketID string, event string, data interface{}) {
+func (s *Server) Emit(socketID string, event string, data any) {
 	s.hub.Emit(socketID, event, data)
 }
 
@@ -191,7 +191,7 @@ func (s *Server) GetAllSockets() []*Socket {
 }
 
 // GetSocketsByProperty returns sockets that have a specific property value
-func (s *Server) GetSocketsByProperty(key string, value interface{}) []*Socket {
+func (s *Server) GetSocketsByProperty(key string, value any) []*Socket {
 	return s.hub.GetSocketsByProperty(key, value)
 }
 
@@ -260,10 +260,10 @@ func (s *Server) handleMessage(socket *Socket, payload []byte) {
 	s.hub.triggerHandlers("message", socket)
 
 	// Try to parse as JSON first (this handles both arrays and objects)
-	var jsonValue interface{}
+	var jsonValue any
 	if err := json.Unmarshal(payload, &jsonValue); err == nil {
 		// Check if it's an array (legacy ultra-compact format)
-		if arr, ok := jsonValue.([]interface{}); ok {
+		if arr, ok := jsonValue.([]any); ok {
 			var msg Message
 			// [type, topic?, data?, id?, to?, code?]
 			if len(arr) > 0 {
@@ -305,7 +305,7 @@ func (s *Server) handleMessage(socket *Socket, payload []byte) {
 		}
 
 		// Check if it's an object (compact or legacy format)
-		if obj, ok := jsonValue.(map[string]interface{}); ok {
+		if obj, ok := jsonValue.(map[string]any); ok {
 			// Unified/compact format (has 't' field)
 			if t, hasT := obj["t"]; hasT {
 				var msg Message
@@ -336,17 +336,17 @@ func (s *Server) handleMessage(socket *Socket, payload []byte) {
 				// Handle file-specific fields
 				if filename, ok := obj["filename"].(string); ok {
 					if msg.Data == nil {
-						msg.Data = make(map[string]interface{})
+						msg.Data = make(map[string]any)
 					}
-					if dataMap, ok := msg.Data.(map[string]interface{}); ok {
+					if dataMap, ok := msg.Data.(map[string]any); ok {
 						dataMap["filename"] = filename
 					}
 				}
 				if size, ok := obj["size"].(float64); ok {
 					if msg.Data == nil {
-						msg.Data = make(map[string]interface{})
+						msg.Data = make(map[string]any)
 					}
-					if dataMap, ok := msg.Data.(map[string]interface{}); ok {
+					if dataMap, ok := msg.Data.(map[string]any); ok {
 						dataMap["size"] = int64(size)
 					}
 				}
@@ -401,7 +401,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 		allTopics := s.hub.GetAllTopics()
 		topicListMsg := Message{
 			T: MsgSystem,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"type":   "topic_list_update",
 				"topics": allTopics,
 			},
@@ -421,7 +421,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 		allTopics := s.hub.GetAllTopics()
 		topicListMsg := Message{
 			T: MsgSystem,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"type":   "topic_list_update",
 				"topics": allTopics,
 			},
@@ -453,7 +453,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 		// Broadcast typing status to all other clients
 		typingMsg := Message{
 			T: MsgTyping,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"typing": msg.Data,
 				"from":   socket.GetAlias(),
 			},
@@ -500,7 +500,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 		userList := s.hub.GetUserList()
 		userListMsg := Message{
 			T: MsgUserList,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"users": userList,
 			},
 		}
@@ -508,13 +508,13 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 
 	case MsgSetAlias:
 		// Set user alias
-		if aliasData, ok := msg.Data.(map[string]interface{}); ok {
+		if aliasData, ok := msg.Data.(map[string]any); ok {
 			if alias, ok := aliasData["alias"].(string); ok && alias != "" {
 				socket.SetAlias(alias)
 				// Broadcast alias change to all users
 				aliasMsg := Message{
 					T: MsgSystem,
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						"message": fmt.Sprintf("%s is now known as %s", socket.ID[:12], alias),
 						"type":    "alias_change",
 						"userId":  socket.ID,
@@ -527,7 +527,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 				userList := s.hub.GetUserList()
 				userListMsg := Message{
 					T: MsgUserList,
-					Data: map[string]interface{}{
+					Data: map[string]any{
 						"users": userList,
 					},
 				}
@@ -600,7 +600,7 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 	// Create file message with metadata for broadcasting
 	fileMsg := Message{
 		T: MsgFile,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"filename": "unknown",
 			"size":     0,
 			"from":     socket.GetAlias(),
@@ -609,12 +609,12 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 
 	// Extract metadata from pending file if available
 	if socket.pendingFile != nil && socket.pendingFile.Data != nil {
-		if dataMap, ok := socket.pendingFile.Data.(map[string]interface{}); ok {
+		if dataMap, ok := socket.pendingFile.Data.(map[string]any); ok {
 			if filename, exists := dataMap["filename"]; exists {
-				fileMsg.Data.(map[string]interface{})["filename"] = filename
+				fileMsg.Data.(map[string]any)["filename"] = filename
 			}
 			if size, exists := dataMap["size"]; exists {
-				fileMsg.Data.(map[string]interface{})["size"] = size
+				fileMsg.Data.(map[string]any)["size"] = size
 			}
 		}
 	}

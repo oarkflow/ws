@@ -33,9 +33,9 @@ type Participant struct {
 
 // SignalingMessage represents a WebRTC signaling message
 type SignalingMessage struct {
-	Type    string      `json:"type"`
-	ID      string      `json:"id"`
-	Payload interface{} `json:"payload"`
+	Type    string `json:"type"`
+	ID      string `json:"id"`
+	Payload any    `json:"payload"`
 }
 
 // AuthPayload for auth messages
@@ -45,9 +45,9 @@ type AuthPayload struct {
 
 // JoinPayload for join messages
 type JoinPayload struct {
-	Room         string                 `json:"room"`
-	DisplayName  string                 `json:"display_name"`
-	Capabilities map[string]interface{} `json:"capabilities"`
+	Room         string         `json:"room"`
+	DisplayName  string         `json:"display_name"`
+	Capabilities map[string]any `json:"capabilities"`
 }
 
 // SDPPayload for offer/answer messages
@@ -96,7 +96,7 @@ type Database interface {
 	CreateCall(roomID string) (*Call, error)
 	GetCall(callID uuid.UUID) (*Call, error)
 	EndCall(callID uuid.UUID) error
-	AddParticipant(callID uuid.UUID, userID, role, clientIP string, metadata map[string]interface{}) (*Participant, error)
+	AddParticipant(callID uuid.UUID, userID, role, clientIP string, metadata map[string]any) (*Participant, error)
 	UpdateParticipantLeft(participantID uuid.UUID) error
 	GetParticipants(callID uuid.UUID) ([]Participant, error)
 	GetActiveCalls() ([]Call, error)
@@ -171,7 +171,7 @@ func (p *PostgresDatabase) EndCall(callID uuid.UUID) error {
 }
 
 // AddParticipant adds a participant to a call
-func (p *PostgresDatabase) AddParticipant(callID uuid.UUID, userID, role, clientIP string, metadata map[string]interface{}) (*Participant, error) {
+func (p *PostgresDatabase) AddParticipant(callID uuid.UUID, userID, role, clientIP string, metadata map[string]any) (*Participant, error) {
 	participantID := uuid.New()
 	now := time.Now()
 

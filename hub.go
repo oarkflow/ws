@@ -13,7 +13,7 @@ type Socket struct {
 	ID          string
 	conn        *Connection
 	hub         *Hub
-	properties  map[string]interface{}
+	properties  map[string]any
 	isBanned    bool
 	pendingFile *Message
 	alias       string
@@ -68,7 +68,7 @@ func (h *Hub) NewSocket(conn *Connection) *Socket {
 		ID:         socketID,
 		conn:       conn,
 		hub:        h,
-		properties: make(map[string]interface{}),
+		properties: make(map[string]any),
 		isBanned:   false,
 	}
 
@@ -117,12 +117,12 @@ func (h *Hub) OnDisconnect(handler Handler) {
 }
 
 // Broadcast sends a message to all connected sockets except the sender
-func (h *Hub) Broadcast(event string, data interface{}) {
+func (h *Hub) Broadcast(event string, data any) {
 	h.BroadcastExcept(event, data, nil)
 }
 
 // BroadcastExcept sends a message to all connected sockets except the specified sender
-func (h *Hub) BroadcastExcept(event string, data interface{}, excludeSocket *Socket) {
+func (h *Hub) BroadcastExcept(event string, data any, excludeSocket *Socket) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -214,7 +214,7 @@ func (h *Hub) BroadcastBinaryToAll(data []byte) {
 }
 
 // Notify sends a message to specific sockets
-func (h *Hub) Notify(socketIDs []string, event string, data interface{}) {
+func (h *Hub) Notify(socketIDs []string, event string, data any) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -233,7 +233,7 @@ func (h *Hub) Notify(socketIDs []string, event string, data interface{}) {
 }
 
 // Emit sends a message to a single socket
-func (h *Hub) Emit(socketID string, event string, data interface{}) {
+func (h *Hub) Emit(socketID string, event string, data any) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -289,7 +289,7 @@ func (h *Hub) GetAllSockets() []*Socket {
 }
 
 // GetSocketsByProperty returns sockets that have a specific property value
-func (h *Hub) GetSocketsByProperty(key string, value interface{}) []*Socket {
+func (h *Hub) GetSocketsByProperty(key string, value any) []*Socket {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -318,9 +318,9 @@ func (h *Hub) DeliverOfflineMessages(socket *Socket) error {
 		// Mark message as offline and add delivery timestamp
 		offlineMsg := msg
 		if offlineMsg.Data == nil {
-			offlineMsg.Data = make(map[string]interface{})
+			offlineMsg.Data = make(map[string]any)
 		}
-		if dataMap, ok := offlineMsg.Data.(map[string]interface{}); ok {
+		if dataMap, ok := offlineMsg.Data.(map[string]any); ok {
 			dataMap["offline"] = true
 			dataMap["delivered_at"] = time.Now().Unix()
 		}
@@ -439,14 +439,14 @@ func (s *Socket) IsBanned() bool {
 }
 
 // SetProperty sets a custom property on the socket
-func (s *Socket) SetProperty(key string, value interface{}) {
+func (s *Socket) SetProperty(key string, value any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.properties[key] = value
 }
 
 // GetProperty gets a custom property from the socket
-func (s *Socket) GetProperty(key string) interface{} {
+func (s *Socket) GetProperty(key string) any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.properties[key]
@@ -470,14 +470,14 @@ func (s *Socket) SetAlias(alias string) {
 }
 
 // GetUserList returns a list of all connected users with their aliases
-func (h *Hub) GetUserList() []map[string]interface{} {
+func (h *Hub) GetUserList() []map[string]any {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	users := make([]map[string]interface{}, 0, len(h.sockets))
+	users := make([]map[string]any, 0, len(h.sockets))
 	for _, socket := range h.sockets {
 		if !socket.IsBanned() {
-			user := map[string]interface{}{
+			user := map[string]any{
 				"id":    socket.ID,
 				"alias": socket.GetAlias(),
 			}

@@ -104,7 +104,7 @@ func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 	}
 
 	var signalingMsg ws.SignalingMessage
-	if data, ok := msg.Data.(map[string]interface{}); ok {
+	if data, ok := msg.Data.(map[string]any); ok {
 		if data["type"] != nil {
 			signalingMsg.Type = data["type"].(string)
 		} else {
@@ -153,7 +153,7 @@ func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 
 // handleAuth handles authentication
 func (m *Manager) handleAuth(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		m.sendError(socket, "Invalid auth payload format")
 		return
@@ -178,7 +178,7 @@ func (m *Manager) handleAuth(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Send success response
 	response := ws.Message{
 		T: ws.MsgAck,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"status":  "authenticated",
 			"user_id": userID,
 		},
@@ -188,7 +188,7 @@ func (m *Manager) handleAuth(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleJoin handles room joining
 func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		m.sendError(socket, "Invalid join payload format")
 		return
@@ -206,7 +206,7 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 		return
 	}
 
-	capabilities, _ := payload["capabilities"].(map[string]interface{})
+	capabilities, _ := payload["capabilities"].(map[string]any)
 
 	userID := socket.GetProperty("user_id")
 	if userID == nil {
@@ -256,7 +256,7 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 	roomState := m.getRoomState(roomObj)
 	joinedMsg := ws.Message{
 		T: ws.MsgJoined,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"participant_id": socket.ID,
 			"room_state":     roomState,
 		},
@@ -266,7 +266,7 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Notify other participants
 	peerJoinedMsg := ws.Message{
 		T: ws.MsgPeerJoined,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"participant": ws.ParticipantInfo{
 				ID:          peer.ID,
 				UserID:      peer.UserID,
@@ -280,7 +280,7 @@ func (m *Manager) handleJoin(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleOffer handles WebRTC offer
 func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		return
 	}
@@ -303,7 +303,7 @@ func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Forward offer to other participants in the room
 	offerMsg := ws.Message{
 		T: ws.MsgOffer,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"sdp":     sdp,
 			"call_id": callID,
 			"from":    socket.ID,
@@ -314,7 +314,7 @@ func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleAnswer handles WebRTC answer
 func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		return
 	}
@@ -337,7 +337,7 @@ func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Forward answer to the target participant
 	answerMsg := ws.Message{
 		T: ws.MsgAnswer,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"sdp":     sdp,
 			"call_id": callID,
 			"from":    socket.ID,
@@ -348,7 +348,7 @@ func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleICECandidate handles ICE candidates
 func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		return
 	}
@@ -376,7 +376,7 @@ func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage)
 	// Forward ICE candidate to other participants
 	iceMsg := ws.Message{
 		T: ws.MsgIceCandidate,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"candidate":     candidate,
 			"sdpMid":        sdpMid,
 			"sdpMLineIndex": int(sdpMLineIndex),
@@ -388,7 +388,7 @@ func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage)
 
 // handleMute handles mute/unmute
 func (m *Manager) handleMute(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		return
 	}
@@ -414,7 +414,7 @@ func (m *Manager) handleMute(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Broadcast mute status
 	muteMsg := ws.Message{
 		T: ws.MsgMute,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"call_id": callID,
 			"track":   track,
 			"muted":   isMuted,
@@ -426,7 +426,7 @@ func (m *Manager) handleMute(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleHold handles call hold
 func (m *Manager) handleHold(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		return
 	}
@@ -451,7 +451,7 @@ func (m *Manager) handleHold(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Broadcast hold status
 	holdMsg := ws.Message{
 		T: ws.MsgHold,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"call_id": callID,
 			"track":   track,
 			"from":    socket.ID,
@@ -462,7 +462,7 @@ func (m *Manager) handleHold(socket *ws.Socket, msg ws.SignalingMessage) {
 
 // handleDTMF handles DTMF tones
 func (m *Manager) handleDTMF(socket *ws.Socket, msg ws.SignalingMessage) {
-	payload, ok := msg.Payload.(map[string]interface{})
+	payload, ok := msg.Payload.(map[string]any)
 	if !ok {
 		return
 	}
@@ -485,7 +485,7 @@ func (m *Manager) handleDTMF(socket *ws.Socket, msg ws.SignalingMessage) {
 	// Forward DTMF to other participants
 	dtmfMsg := ws.Message{
 		T: ws.MsgDTMF,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"call_id": callID,
 			"tones":   tones,
 			"from":    socket.ID,
@@ -527,7 +527,7 @@ func (m *Manager) HandleDisconnect(socketID string) {
 		// Notify others
 		peerLeftMsg := ws.Message{
 			T: ws.MsgPeerLeft,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"participant_id": socketID,
 			},
 		}
@@ -636,7 +636,7 @@ func (m *Manager) getRoomState(room *Room) ws.RoomState {
 func (m *Manager) sendError(socket *ws.Socket, message string) {
 	errorMsg := ws.Message{
 		T: ws.MsgError,
-		Data: map[string]interface{}{
+		Data: map[string]any{
 			"message": message,
 		},
 	}

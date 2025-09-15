@@ -19,7 +19,7 @@ func main() {
 		log.Printf("Client connected: %s", socket.ID)
 		welcomeMsg := ws.Message{
 			T: ws.MsgSystem,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"message": "Connected to WebSocket server",
 				"id":      socket.ID,
 				"type":    "welcome",
@@ -31,7 +31,7 @@ func main() {
 		userList := hub.GetUserList()
 		userListMsg := ws.Message{
 			T: ws.MsgUserList,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"users": userList,
 			},
 		}
@@ -41,7 +41,7 @@ func main() {
 		allTopics := hub.GetAllTopics()
 		topicListMsg := ws.Message{
 			T: ws.MsgSystem,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"type":   "topic_list_update",
 				"topics": allTopics,
 			},
@@ -60,7 +60,7 @@ func main() {
 		userList := hub.GetUserList()
 		userListMsg := ws.Message{
 			T: ws.MsgUserList,
-			Data: map[string]interface{}{
+			Data: map[string]any{
 				"users": userList,
 			},
 		}
@@ -87,7 +87,7 @@ func main() {
 		for range ticker.C {
 			heartbeatMsg := ws.Message{
 				T: ws.MsgSystem,
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"timestamp":   time.Now().Unix(),
 					"connections": server.GetConnectionCount(),
 					"type":        "heartbeat",
@@ -119,7 +119,7 @@ func main() {
 			}
 			broadcastMsg := ws.Message{
 				T: ws.MsgSystem,
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"message":   message,
 					"timestamp": time.Now().Unix(),
 					"source":    "http_endpoint",
@@ -138,6 +138,6 @@ func main() {
 	http.HandleFunc("/ws", server.HandleWebSocket)
 	http.Handle("/", http.FileServer(http.Dir("./views")))
 
-	log.Println("WebSocket server with Hub starting on :8080")
+	log.Println("WebSocket server with Hub starting on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }

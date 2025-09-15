@@ -45,7 +45,8 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 	masked := (b & 0x80) != 0
 	payloadLen := int(b & 0x7F)
 
-	if payloadLen == 126 {
+	switch payloadLen {
+	case 126:
 		// Read extended payload length (16 bits)
 		lenBytes := make([]byte, 2)
 		_, err = io.ReadFull(c.reader, lenBytes)
@@ -53,7 +54,7 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 			return 0, nil, err
 		}
 		payloadLen = int(lenBytes[0])<<8 | int(lenBytes[1])
-	} else if payloadLen == 127 {
+	case 127:
 		// Read extended payload length (64 bits)
 		lenBytes := make([]byte, 8)
 		_, err = io.ReadFull(c.reader, lenBytes)
