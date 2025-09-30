@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chat Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .chat-container {
+            display: flex;
+            gap: 20px;
+        }
+
+        .chat-area {
+            flex: 1;
+        }
+
+        .sidebar {
+            width: 250px;
+        }
+
+        .messages {
+            border: 1px solid #ddd;
+            height: 400px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #fafafa;
+            border-radius: 4px;
+        }
+
+        .message {
+            margin: 8px 0;
+            padding: 8px;
+            background-color: white;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+
+        .message.system {
+            border-left-color: #6c757d;
+            font-style: italic;
+        }
+
+        .message.private {
+            border-left-color: #28a745;
+        }
+
+        .message.broadcast {
+            border-left-color: #ffc107;
+        }
+
+        .message.typing {
+            border-left-color: #17a2b8;
+            font-style: italic;
+            opacity: 0.7;
+        }
+
+        .input-group {
+            margin: 10px 0;
+            display: flex;
+            gap: 10px;
+        }
+
+        input,
+        button,
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        input {
+            flex: 1;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .user-list {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+
+        .user-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .user-item:last-child {
+            border-bottom: none;
+        }
+
+        .topic-list {
+            margin: 10px 0;
+        }
+
+        .topic-item {
+            display: inline-block;
+            background-color: #e9ecef;
+            padding: 4px 8px;
+            margin: 2px;
+            border-radius: 12px;
+            font-size: 0.9em;
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: #6c757d;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Simple Chat Example</h1>
+
+    <div class="container">
+        <h2>Connection Status</h2>
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <div class="input-group">
+            <input type="text" id="aliasInput" placeholder="Enter your alias">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="chat-container">
+            <div class="chat-area">
+                <h2>Chat</h2>
+                <div id="messages" class="messages"></div>
+                <div id="typingIndicator" class="typing-indicator" style="display: none;"></div>
+
+                <div class="input-group">
+                    <select id="messageType">
+                        <option value="broadcast">Broadcast</option>
+                        <option value="direct">Direct Message</option>
+                    </select>
+                    <input type="text" id="recipientInput" placeholder="Recipient (for direct messages)"
+                        style="display: none;">
+                    <input type="text" id="topicInput" placeholder="Topic (for broadcast)">
+                    <input type="text" id="messageInput" placeholder="Type your message..." disabled>
+                    <button id="sendBtn" disabled>Send</button>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <h3>Online Users</h3>
+                <div id="userList" class="user-list">
+                    <div class="user-item">No users online</div>
+                </div>
+
+                <h3>Subscribed Topics</h3>
+                <div id="topicList" class="topic-list">
+                    <span class="topic-item">general</span>
+                </div>
+
+                <div class="input-group">
+                    <input type="text" id="newTopicInput" placeholder="New topic">
+                    <button id="subscribeBtn" disabled>Subscribe</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { WebSocketConnection } from './websocket.js';
+
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const aliasInput = document.getElementById('aliasInput');
+        const messageTypeSelect = document.getElementById('messageType');
+        const recipientInput = document.getElementById('recipientInput');
+        const topicInput = document.getElementById('topicInput');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const userListDiv = document.getElementById('userList');
+        const topicListDiv = document.getElementById('topicList');
+        const newTopicInput = document.getElementById('newTopicInput');
+        const subscribeBtn = document.getElementById('subscribeBtn');
+        let userList = {};
+
+        let ws = null;
+        let currentUserId = null;
+        let typingTimeout = null;
+
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const alias = aliasInput.value.trim() || 'Anonymous';
+            ws = new WebSocketConnection('ws://localhost:8080/ws', {
+                autoReconnect: true,
+                maxReconnectAttempts: 5
+            });
+
+            // Event handlers
+            ws.on('open', () => {
+                updateStatus('Connected', true);
+                addMessage('system', 'Connected to chat server');
+
+                // Set alias
+                ws.setAlias(alias);
+
+                // Subscribe to general topic
+                ws.subscribe('general');
+
+                // Request user list
+                ws.requestUserList();
+            });
+
+            ws.on('close', () => {
+                updateStatus('Disconnected', false);
+                addMessage('system', 'Disconnected from chat server');
+                currentUserId = null;
+            });
+
+            ws.on('error', (error) => {
+                addMessage('system', `Connection error: ${error}`);
+            });
+
+            ws.on('reconnecting', (data) => {
+                addMessage('system', `Reconnecting... (attempt ${data.attempt})`);
+            });
+
+            ws.on('message', (data) => {
+                handleMessage(data);
+            });
+
+            ws.on('alias_set', (data) => {
+                addMessage('system', `Your alias is set to: ${data.alias}`);
+            });
+
+            ws.on('subscribed', (data) => {
+                addTopic(data.topic);
+                addMessage('system', `Subscribed to topic: ${data.topic}`);
+            });
+
+            ws.on('unsubscribed', (data) => {
+                removeTopic(data.topic);
+                addMessage('system', `Unsubscribed from topic: ${data.topic}`);
+            });
+        }
+
+        function handleMessage(data) {
+            switch (data.event) {
+                case 'broadcast':
+                    addMessage('broadcast', `${data.from || 'Unknown'}: ${JSON.stringify(data.data)}`, data.topic);
+                    break;
+                case 'direct':
+                    addMessage('private', `${data.from || 'Unknown'}: ${JSON.stringify(data.data)}`);
+                    break;
+                case 'system':
+                    if (data.data && data.data.type === 'welcome') {
+                        currentUserId = data.data.id;
+                        addMessage('system', `Welcome! Your ID: ${currentUserId}`);
+                    } else if (data.data && data.data.type === 'user_list_update') {
+                        userList = {
+                            ...userList,
+                            ...(data.data.users || []).reduce((acc, user) => {
+                                acc[user.id] = user;
+                                return acc;
+                            }, {})
+                        }
+                        updateUserList(data.data.users || []);
+                    } else if (data.data && data.data.type === 'topic_list_update') {
+                        updateTopicList(data.data.topics || []);
+                    } else if (data.data && data.data.type === 'heartbeat') {
+                        // Silent heartbeat
+                    } else {
+                        addMessage('system', JSON.stringify(data.data));
+                    }
+                    break;
+                case 'user_list':
+                    userList = {
+                        ...userList,
+                        ...(data.data?.users || []).reduce((acc, user) => {
+                            acc[user.id] = user;
+                            return acc;
+                        }, {})
+                    }
+                    updateUserList(data.data?.users || []);
+                    break;
+                case 'typing':
+                    showTypingIndicator(data.from, data.data.typing);
+                    break;
+                default:
+                    addMessage('system', `${data.event}: ${JSON.stringify(data)}`);
+            }
+        }
+
+        function addMessage(type, content, topic = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+
+            let topicInfo = topic ? ` [${topic}]` : '';
+            messageDiv.innerHTML = topicInfo ? `<strong>${topicInfo}:</strong> ${content}` : content;
+
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function updateUserList(users) {
+            userListDiv.innerHTML = '';
+            if (users.length === 0) {
+                userListDiv.innerHTML = '<div class="user-item">No users online</div>';
+                return;
+            }
+
+            users.forEach(user => {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'user-item';
+                userDiv.textContent = user.alias || user.id || 'Unknown';
+                userDiv.onclick = () => {
+                    messageTypeSelect.value = 'direct';
+                    recipientInput.value = user.id;
+                    toggleRecipientInput();
+                    messageInput.focus();
+                };
+                userListDiv.appendChild(userDiv);
+            });
+        }
+
+        function updateTopicList(topics) {
+            // Clear existing topics except 'general'
+            const generalTopic = topicListDiv.querySelector('.topic-item');
+            topicListDiv.innerHTML = '';
+            if (generalTopic) {
+                topicListDiv.appendChild(generalTopic);
+            }
+
+            topics.forEach(topic => {
+                if (topic !== 'general') {
+                    addTopic(topic);
+                }
+            });
+        }
+
+        function addTopic(topic) {
+            if (!topicListDiv.querySelector(`[data-topic="${topic}"]`)) {
+                const topicDiv = document.createElement('span');
+                topicDiv.className = 'topic-item';
+                topicDiv.textContent = topic;
+                topicDiv.setAttribute('data-topic', topic);
+                topicDiv.onclick = () => {
+                    topicInput.value = topic;
+                };
+                topicListDiv.appendChild(topicDiv);
+            }
+        }
+
+        function removeTopic(topic) {
+            const topicElement = topicListDiv.querySelector(`[data-topic="${topic}"]`);
+            if (topicElement) {
+                topicElement.remove();
+            }
+        }
+
+        function showTypingIndicator(user, isTyping) {
+            if (isTyping) {
+                typingIndicator.textContent = `${user} is typing...`;
+                typingIndicator.style.display = 'block';
+            } else {
+                typingIndicator.style.display = 'none';
+            }
+        }
+
+        function toggleRecipientInput() {
+            recipientInput.style.display = messageTypeSelect.value === 'direct' ? 'block' : 'none';
+        }
+
+        // UI event handlers
+        connectBtn.addEventListener('click', () => {
+            if (!ws || !ws.isConnected()) {
+                initWebSocket();
+                ws.connect();
+            }
+        });
+
+        disconnectBtn.addEventListener('click', () => {
+            if (ws) {
+                ws.disconnect();
+            }
+        });
+
+        messageTypeSelect.addEventListener('change', toggleRecipientInput);
+
+        sendBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            if (messageTypeSelect.value === 'direct') {
+                const recipient = recipientInput.value.trim();
+                if (recipient) {
+                    const user = userList[recipient];
+                    ws.sendDirectMessage(recipient, { message, timestamp: Date.now() });
+                    addMessage('private', `To ${user.alias || user.id || 'Unknown'}: ${message}`);
+                }
+            } else {
+                const topic = topicInput.value.trim() || 'general';
+                ws.publish(topic, { message, timestamp: Date.now() });
+                addMessage('broadcast', `You: ${message}`, topic);
+            }
+
+            messageInput.value = '';
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        messageInput.addEventListener('input', () => {
+            if (ws && ws.isConnected()) {
+                ws.sendTyping(true);
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    ws.sendTyping(false);
+                }, 1000);
+            }
+        });
+
+        subscribeBtn.addEventListener('click', () => {
+            const topic = newTopicInput.value.trim();
+            if (topic && ws && ws.isConnected()) {
+                ws.subscribe(topic);
+                newTopicInput.value = '';
+            }
+        });
+
+        function updateStatus(text, connected) {
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${connected ? 'connected' : 'disconnected'}`;
+
+            connectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+            messageInput.disabled = !connected;
+            sendBtn.disabled = !connected;
+            subscribeBtn.disabled = !connected;
+        }
+
+        // Initial setup
+        updateStatus('Disconnected', false);
+        toggleRecipientInput();
+    </script>
+</body>
+
+</html>

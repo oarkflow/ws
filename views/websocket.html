@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple WebSocket Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            margin: 20px 0;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .messages {
+            border: 1px solid #ddd;
+            height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            background-color: white;
+            border-radius: 3px;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simple WebSocket Example</h1>
+
+    <div class="container">
+        <h2>Connection Status</h2>
+        <div id="status" class="status disconnected">Disconnected</div>
+
+        <div class="input-group">
+            <button id="connectBtn">Connect</button>
+            <button id="disconnectBtn" disabled>Disconnect</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Messages</h2>
+        <div id="messages" class="messages"></div>
+
+        <div class="input-group">
+            <input type="text" id="messageInput" placeholder="Enter message..." disabled>
+            <button id="sendBtn" disabled>Send</button>
+        </div>
+
+        <div class="input-group">
+            <input type="text" id="topicInput" placeholder="Topic (optional)">
+            <button id="subscribeBtn" disabled>Subscribe</button>
+            <button id="unsubscribeBtn" disabled>Unsubscribe</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { WebSocketConnection } from '../../views/websocket.js';
+
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const topicInput = document.getElementById('topicInput');
+        const subscribeBtn = document.getElementById('subscribeBtn');
+        const unsubscribeBtn = document.getElementById('unsubscribeBtn');
+
+        // Initialize WebSocket connection
+        const ws = new WebSocketConnection('ws://localhost:8080/ws', {
+            autoReconnect: true,
+            maxReconnectAttempts: 5
+        });
+
+        // Event handlers
+        ws.on('open', () => {
+            updateStatus('Connected', true);
+            addMessage('System', 'Connected to WebSocket server');
+        });
+
+        ws.on('close', () => {
+            updateStatus('Disconnected', false);
+            addMessage('System', 'Disconnected from WebSocket server');
+        });
+
+        ws.on('error', (error) => {
+            addMessage('Error', `Connection error: ${error}`);
+        });
+
+        ws.on('reconnecting', (data) => {
+            addMessage('System', `Reconnecting... (attempt ${data.attempt})`);
+        });
+
+        ws.on('message', (data) => {
+            if (data.event === 'broadcast') {
+                addMessage('Broadcast', JSON.stringify(data.data));
+            } else if (data.event === 'system') {
+                addMessage('System', JSON.stringify(data.data));
+            } else {
+                addMessage('Message', `${data.event}: ${JSON.stringify(data)}`);
+            }
+        });
+
+        ws.on('subscribed', (data) => {
+            addMessage('System', `Subscribed to topic: ${data.topic}`);
+        });
+
+        ws.on('unsubscribed', (data) => {
+            addMessage('System', `Unsubscribed from topic: ${data.topic}`);
+        });
+
+        // UI event handlers
+        connectBtn.addEventListener('click', () => {
+            ws.connect();
+        });
+
+        disconnectBtn.addEventListener('click', () => {
+            ws.disconnect();
+        });
+
+        sendBtn.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                ws.publish('general', { message, timestamp: Date.now() });
+                messageInput.value = '';
+            }
+        });
+
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        subscribeBtn.addEventListener('click', () => {
+            const topic = topicInput.value.trim();
+            if (topic) {
+                ws.subscribe(topic);
+            }
+        });
+
+        unsubscribeBtn.addEventListener('click', () => {
+            const topic = topicInput.value.trim();
+            if (topic) {
+                ws.unsubscribe(topic);
+            }
+        });
+
+        function updateStatus(text, connected) {
+            statusDiv.textContent = text;
+            statusDiv.className = `status ${connected ? 'connected' : 'disconnected'}`;
+
+            connectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+            messageInput.disabled = !connected;
+            sendBtn.disabled = !connected;
+            subscribeBtn.disabled = !connected;
+            unsubscribeBtn.disabled = !connected;
+        }
+
+        function addMessage(type, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message';
+            messageDiv.innerHTML = `<strong>${type}:</strong> ${content}`;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Initial status
+        updateStatus('Disconnected', false);
+    </script>
+</body>
+</html>

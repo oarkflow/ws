@@ -39,6 +39,14 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check WebSocket version
+	version := r.Header.Get("Sec-WebSocket-Version")
+	if version != "13" {
+		w.Header().Set("Sec-WebSocket-Version", "13")
+		http.Error(w, "Upgrade Required", 426)
+		return
+	}
+
 	// Check authentication (header or query) - disabled for demo
 	token := r.Header.Get("Authorization")
 	if token == "" {
@@ -63,6 +71,12 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	key := r.Header.Get("Sec-WebSocket-Key")
 	if key == "" {
 		http.Error(w, "Missing Sec-WebSocket-Key", 400)
+		return
+	}
+
+	// Validate Sec-WebSocket-Key is valid base64
+	if _, err := base64.StdEncoding.DecodeString(key); err != nil {
+		http.Error(w, "Invalid Sec-WebSocket-Key", 400)
 		return
 	}
 
@@ -230,13 +244,44 @@ func (s *Server) handleConnection(socket *Socket) {
 		s.hub.triggerHandlers("close", socket)
 	}()
 
+	var messageBuffer []byte
+	var messageOpcode byte
+
 	for {
-		opcode, payload, err := socket.conn.readFrame()
+		fin, opcode, payload, err := socket.conn.readFrame()
 		if err != nil {
 			log.Println("Read frame error:", err)
+			// Send close frame with protocol error
+			socket.conn.writeMessage(CloseMessage, []byte{0x03, 0xEA}) // 1002
 			return
 		}
 
+		// Control frames must not be fragmented
+		if opcode >= 8 && !fin {
+			log.Println("Control frame must not be fragmented")
+			socket.conn.writeMessage(CloseMessage, []byte{0x03, 0xEA}) // 1002
+			return
+		}
+
+		if fin == false {
+			// Fragmented frame
+			if messageBuffer == nil {
+				messageOpcode = opcode
+			}
+			messageBuffer = append(messageBuffer, payload...)
+			continue
+		}
+
+		// Final frame
+		if messageBuffer != nil {
+			// Continuation of fragmented message
+			messageBuffer = append(messageBuffer, payload...)
+			payload = messageBuffer
+			opcode = messageOpcode
+			messageBuffer = nil
+		}
+
+		// Process the complete message
 		switch opcode {
 		case TextMessage:
 			// Handle custom events
@@ -245,9 +290,17 @@ func (s *Server) handleConnection(socket *Socket) {
 			// Handle binary file data
 			s.handleBinaryMessage(socket, payload)
 		case CloseMessage:
+			// Send close frame back
+			socket.conn.writeMessage(CloseMessage, payload)
 			return
 		case PingMessage:
 			socket.conn.writeMessage(PongMessage, payload)
+		case PongMessage:
+			// Ignore pong
+		default:
+			// Unknown opcode, close with protocol error
+			socket.conn.writeMessage(CloseMessage, []byte{0x03, 0xEA}) // 1002
+			return
 		}
 	}
 }
@@ -451,14 +504,18 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 
 	case MsgTyping:
 		// Broadcast typing status to all other clients
-		typingMsg := Message{
-			T: MsgTyping,
-			Data: map[string]any{
-				"typing": msg.Data,
-				"from":   socket.GetAlias(),
-			},
+		if typingData, ok := msg.Data.(map[string]any); ok {
+			if typing, exists := typingData["typing"]; exists {
+				typingMsg := Message{
+					T: MsgTyping,
+					Data: map[string]any{
+						"typing": typing,
+						"from":   socket.GetAlias(),
+					},
+				}
+				s.hub.BroadcastMessageExcept(typingMsg, socket)
+			}
 		}
-		s.hub.BroadcastMessageExcept(typingMsg, socket)
 
 	case MsgDirect:
 		// Send direct message to specific user

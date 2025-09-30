@@ -8,7 +8,7 @@ export class WebSocketConnection {
         this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
         this.reconnectInterval = options.reconnectInterval || 1000;
         this.autoReconnect = options.autoReconnect !== false;
-        this.token = options.token || 'mysecrettoken';
+        this.token = options.token;
         this.userId = null;
         this.userAlias = null;
         this.lastFileMetadata = null;
@@ -20,7 +20,10 @@ export class WebSocketConnection {
         }
 
         try {
-            const url = this.url + (this.url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(this.token);
+            let url = this.url;
+            if (this.token) {
+                url += (this.url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(this.token);
+            }
             this.ws = new WebSocket(url);
             this.ws.binaryType = 'arraybuffer';
 

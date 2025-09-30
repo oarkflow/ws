@@ -2,6 +2,7 @@ package ws
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -29,18 +30,25 @@ type Connection struct {
 }
 
 // readFrame reads a WebSocket frame
-func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
+func (c *Connection) readFrame() (fin bool, opcode byte, payload []byte, err error) {
 	// Read first byte
 	b, err := c.reader.ReadByte()
 	if err != nil {
-		return 0, nil, err
+		return false, 0, nil, err
 	}
+	fin = (b & 0x80) != 0
+	rsv := (b & 0x70) >> 4
 	opcode = b & 0x0F
+
+	// RSV bits must be 0 (no extensions)
+	if rsv != 0 {
+		return false, 0, nil, fmt.Errorf("RSV bits must be 0")
+	}
 
 	// Read second byte
 	b, err = c.reader.ReadByte()
 	if err != nil {
-		return 0, nil, err
+		return false, 0, nil, err
 	}
 	masked := (b & 0x80) != 0
 	payloadLen := int(b & 0x7F)
@@ -51,7 +59,7 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 		lenBytes := make([]byte, 2)
 		_, err = io.ReadFull(c.reader, lenBytes)
 		if err != nil {
-			return 0, nil, err
+			return false, 0, nil, err
 		}
 		payloadLen = int(lenBytes[0])<<8 | int(lenBytes[1])
 	case 127:
@@ -59,7 +67,7 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 		lenBytes := make([]byte, 8)
 		_, err = io.ReadFull(c.reader, lenBytes)
 		if err != nil {
-			return 0, nil, err
+			return false, 0, nil, err
 		}
 		payloadLen = int(lenBytes[0])<<56 | int(lenBytes[1])<<48 | int(lenBytes[2])<<40 | int(lenBytes[3])<<32 |
 			int(lenBytes[4])<<24 | int(lenBytes[5])<<16 | int(lenBytes[6])<<8 | int(lenBytes[7])
@@ -71,7 +79,7 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 		maskKey = make([]byte, 4)
 		_, err = io.ReadFull(c.reader, maskKey)
 		if err != nil {
-			return 0, nil, err
+			return false, 0, nil, err
 		}
 	}
 
@@ -79,7 +87,7 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 	payload = make([]byte, payloadLen)
 	_, err = io.ReadFull(c.reader, payload)
 	if err != nil {
-		return 0, nil, err
+		return false, 0, nil, err
 	}
 
 	// Unmask payload if masked
@@ -89,7 +97,7 @@ func (c *Connection) readFrame() (opcode byte, payload []byte, err error) {
 		}
 	}
 
-	return opcode, payload, nil
+	return fin, opcode, payload, nil
 }
 
 // writeMessage writes a WebSocket message
