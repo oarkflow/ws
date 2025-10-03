@@ -116,8 +116,8 @@ func (s *Server) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		closeChan:     make(chan bool),
 	}
 
-	// Create socket and add to hub
-	socket := s.hub.NewSocket(wsConn)
+	// Create socket and add to hub (pass user token for connection limiting)
+	socket := s.hub.NewSocket(wsConn, token)
 	if socket == nil {
 		return // Connection limit reached
 	}

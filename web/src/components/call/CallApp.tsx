@@ -2,7 +2,19 @@ import React, { useState } from 'react';
 import SetupScreen from './SetupScreen';
 import CallScreen from './CallScreen';
 
-const CallApp: React.FC = () => {
+interface User {
+    id: string;
+    name: string;
+    email: string;
+    avatar: string;
+}
+
+interface CallAppProps {
+    user: User;
+    token: string;
+}
+
+const CallApp: React.FC<CallAppProps> = ({ user, token }) => {
     const [inCall, setInCall] = useState(false);
     const [roomId, setRoomId] = useState('');
     const [displayName, setDisplayName] = useState('');

@@ -23,6 +23,7 @@ type Socket struct {
 // Hub manages all WebSocket connections and event handlers
 type Hub struct {
 	sockets        map[string]*Socket
+	userSockets    map[string]*Socket // Track one socket per user
 	handlers       map[string][]Handler
 	globalHandlers map[string][]Handler
 	mu             sync.RWMutex
@@ -41,6 +42,7 @@ func NewHub(storage MessageStorage) *Hub {
 	}
 	return &Hub{
 		sockets:        make(map[string]*Socket),
+		userSockets:    make(map[string]*Socket),
 		handlers:       make(map[string][]Handler),
 		globalHandlers: make(map[string][]Handler),
 		maxConns:       100000,
@@ -53,7 +55,7 @@ func (h *Hub) Storage() MessageStorage {
 }
 
 // NewSocket creates a new socket instance
-func (h *Hub) NewSocket(conn *Connection) *Socket {
+func (h *Hub) NewSocket(conn *Connection, userToken string) *Socket {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -63,6 +65,23 @@ func (h *Hub) NewSocket(conn *Connection) *Socket {
 		return nil
 	}
 
+	// Check if user already has an active connection (be less aggressive to prevent cascade)
+	if userToken != "" {
+		if existingSocket, exists := h.userSockets[userToken]; exists {
+			// Check if the existing connection is actually active
+			if existingSocket.conn != nil && existingSocket.conn.conn != nil {
+				log.Printf("User %s already has an active connection, rejecting new connection to prevent cascade", userToken)
+				conn.conn.Close()
+				return nil
+			} else {
+				// Existing connection is dead, clean it up
+				log.Printf("User %s has dead connection, cleaning up and accepting new one", userToken)
+				delete(h.sockets, existingSocket.ID)
+				h.connCount--
+			}
+		}
+	}
+
 	socketID := generateSocketID()
 	socket := &Socket{
 		ID:         socketID,
@@ -70,6 +89,11 @@ func (h *Hub) NewSocket(conn *Connection) *Socket {
 		hub:        h,
 		properties: make(map[string]any),
 		isBanned:   false,
+	}
+
+	// Store socket by user token for connection limiting
+	if userToken != "" {
+		h.userSockets[userToken] = socket
 	}
 
 	h.sockets[socketID] = socket
@@ -344,6 +368,15 @@ func (h *Hub) RemoveSocket(socketID string) {
 	if socket, exists := h.sockets[socketID]; exists {
 		delete(h.sockets, socketID)
 		h.connCount--
+
+		// Also remove from userSockets map if it exists there
+		for userToken, userSocket := range h.userSockets {
+			if userSocket.ID == socketID {
+				delete(h.userSockets, userToken)
+				break
+			}
+		}
+
 		h.triggerHandlers("disconnect", socket)
 	}
 }

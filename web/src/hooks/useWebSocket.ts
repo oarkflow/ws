@@ -42,10 +42,6 @@ class WebSocketConnection {
     private ws: WebSocket | null = null;
     private eventHandlers: { [key: string]: Function[] } = {};
     private subscriptions = new Set<string>();
-    private reconnectAttempts = 0;
-    private maxReconnectAttempts: number;
-    private reconnectInterval: number;
-    private autoReconnect: boolean;
     private token: string;
     private url: string;
     public userId: string | null = null;
@@ -53,12 +49,9 @@ class WebSocketConnection {
     public lastFileMetadata: any = null;
     private fileDownloadUrls: Map<string, string> = new Map();
 
-    constructor(url: string, options: any = {}) {
+    constructor(url: string, token?: string) {
         this.url = url;
-        this.maxReconnectAttempts = options.maxReconnectAttempts || 5;
-        this.reconnectInterval = options.reconnectInterval || 1000;
-        this.autoReconnect = options.autoReconnect !== false;
-        this.token = options.token;
+        this.token = token || '';
     }
 
     connect(url?: string) {
@@ -76,7 +69,6 @@ class WebSocketConnection {
             this.ws.binaryType = 'arraybuffer';
 
             this.ws.onopen = (event) => {
-                this.reconnectAttempts = 0;
                 this.emit('open', event);
             };
 
@@ -90,13 +82,7 @@ class WebSocketConnection {
 
             this.ws.onclose = (event) => {
                 this.emit('close', event);
-                if (this.autoReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
-                    setTimeout(() => {
-                        this.reconnectAttempts++;
-                        this.emit('reconnecting', { attempt: this.reconnectAttempts });
-                        this.connect(url);
-                    }, this.reconnectInterval * this.reconnectAttempts);
-                }
+                // Auto-reconnect is disabled - no automatic reconnection
             };
 
             this.ws.onerror = (event) => {
@@ -394,11 +380,7 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
     const wsRef = useRef<WebSocketConnection | null>(null);
 
     useEffect(() => {
-        wsRef.current = new WebSocketConnection(url, {
-            token,
-            autoReconnect: true,
-            maxReconnectAttempts: 5
-        });
+        wsRef.current = new WebSocketConnection(url, token);
 
         const ws = wsRef.current;
 
