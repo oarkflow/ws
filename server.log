@@ -1,0 +1,28 @@
+2025/10/03 21:33:25 No DATABASE_URL provided, running without database persistence
+2025/10/03 21:33:25 WebRTC Call Management Backend starting on :8080
+2025/10/03 21:33:29 WebSocket connection established: 1759506509132663000
+2025/10/03 21:33:29 Client connected: 1759506509132663000
+2025/10/03 21:34:32 WebSocket connection established: 1759506572250591000
+2025/10/03 21:34:32 Client connected: 1759506572250591000
+2025/10/03 21:34:32 Received message: type=14 (user_list), socket=1759506572250591000
+2025/10/03 21:34:48 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:49 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:50 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:50 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:50 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:50 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:50 Received message: type=12 (direct), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=11 (typing), socket=1759506572250591000
+2025/10/03 21:34:57 Received message: type=12 (direct), socket=1759506572250591000
+signal: killed
