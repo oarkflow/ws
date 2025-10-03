@@ -140,6 +140,8 @@ class WebRTCManager {
     }
 
     disconnect() {
+        console.log('WebRTC disconnect called - cleaning up all media streams');
+
         // Stop recording if active
         if (this.isRecording) {
             this.stopRecording();
@@ -151,12 +153,19 @@ class WebRTCManager {
         }
 
         // Close all peer connections
-        this.peerConnections.forEach(pc => pc.close());
+        this.peerConnections.forEach((pc, id) => {
+            console.log('Closing peer connection:', id);
+            pc.close();
+        });
         this.peerConnections.clear();
 
-        // Stop local stream
+        // Stop local stream tracks immediately
         if (this.localStream) {
-            this.localStream.getTracks().forEach(track => track.stop());
+            console.log('Stopping local stream tracks:', this.localStream.getTracks().length);
+            this.localStream.getTracks().forEach((track: MediaStreamTrack) => {
+                console.log('Stopping track:', track.kind, track.label);
+                track.stop();
+            });
             this.localStream = null;
         }
 

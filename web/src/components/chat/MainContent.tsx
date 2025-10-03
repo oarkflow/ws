@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Menu, MessageSquare, Trash2, Zap, Globe, User, Hash, Send, Upload } from 'lucide-react';
+import { Menu, MessageSquare, Trash2, Zap, Globe, User, Hash, Send, Upload, Phone, Video, PhoneOff } from 'lucide-react';
 
 interface User {
     id: string;
@@ -37,6 +37,7 @@ interface MainContentProps {
     onClearMessages: () => void;
     onPing: () => void;
     onSendTyping: (isTyping: boolean) => void;
+    onStartCall?: (type: 'audio' | 'video', recipientId: string) => void;
 }
 
 const MainContent: React.FC<MainContentProps> = ({
@@ -56,7 +57,8 @@ const MainContent: React.FC<MainContentProps> = ({
     onSendFile,
     onClearMessages,
     onPing,
-    onSendTyping
+    onSendTyping,
+    onStartCall
 }) => {
     const [messageInput, setMessageInput] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -208,7 +210,7 @@ const MainContent: React.FC<MainContentProps> = ({
     };
 
     return (
-        <div className="flex-1 min-h-screen">
+        <div className="flex-1 h-full">
             {/* Top Navigation */}
             <nav className="bg-white shadow-sm border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
                 <div className="flex items-center justify-between">
@@ -223,6 +225,27 @@ const MainContent: React.FC<MainContentProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-3 sm:space-x-4">
+
+                        {/* Call buttons for direct messages */}
+                        {messageType === 'direct' && selectedRecipient && onStartCall && (
+                            <div className="flex items-center space-x-2">
+                                <button
+                                    onClick={() => onStartCall('audio', selectedRecipient)}
+                                    className="p-2 text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Audio call"
+                                >
+                                    <Phone className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => onStartCall('video', selectedRecipient)}
+                                    className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    title="Video call"
+                                >
+                                    <Video className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
+
                         <div className="hidden md:flex items-center space-x-2 text-sm text-slate-600">
                             <div className="w-4 h-4" /> {/* Activity icon placeholder */}
                             <span>Real-time updates active</span>
@@ -457,6 +480,7 @@ const MainContent: React.FC<MainContentProps> = ({
                     </div>
                 </div>
             </div>
+
         </div>
     );
 };

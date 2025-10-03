@@ -57,10 +57,19 @@ const CallScreen: React.FC<CallScreenProps> = ({
         audioManager.current.resume();
 
         return () => {
+            console.log('Cleaning up CallScreen - stopping media streams');
             disconnect();
             audioManager.current.stopAllTones();
+
+            // Force stop all media tracks
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    console.log('Stopping track:', track.kind);
+                    track.stop();
+                });
+            }
         };
-    }, [roomId, displayName, authToken, connect, disconnect]);
+    }, [roomId, displayName, authToken, connect, disconnect, localStream]);
 
     useEffect(() => {
         // Set local video stream
@@ -113,7 +122,17 @@ const CallScreen: React.FC<CallScreenProps> = ({
     };
 
     const handleLeaveCall = () => {
+        console.log('User initiated call leave - cleaning up media streams');
         audioManager.current.playEndCallTone();
+
+        // Immediately stop all local media tracks
+        if (localStream) {
+            localStream.getTracks().forEach((track: MediaStreamTrack) => {
+                console.log('Stopping local track:', track.kind, track.label);
+                track.stop();
+            });
+        }
+
         setTimeout(() => {
             disconnect();
             onLeaveCall();

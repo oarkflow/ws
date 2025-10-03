@@ -510,6 +510,23 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
     const sendMessage = useCallback((message: string, type: 'broadcast' | 'direct' | 'topic', recipient?: string, topic?: string) => {
         if (!wsRef.current) return;
 
+        // Create message object for local state
+        const messageObj: WebSocketMessage = {
+            event: type,
+            data: { message },
+            timestamp: new Date(),
+            from: currentUser?.id
+        };
+
+        if (type === 'direct' && recipient) {
+            messageObj.to = recipient;
+        } else if (type === 'topic' && topic) {
+            messageObj.topic = topic;
+        }
+
+        // Add to local messages immediately for better UX
+        setMessages(prev => [...prev, messageObj]);
+
         if (type === 'broadcast') {
             // For broadcast, use the broadcast message type
             wsRef.current.sendBroadcast({ message });
@@ -518,13 +535,34 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         } else if (type === 'topic' && topic) {
             wsRef.current.publish(topic, { message });
         }
-    }, []);
+    }, [currentUser]);
 
     const sendFile = useCallback((file: File, recipient?: string, topic?: string) => {
         if (wsRef.current) {
+            // Create file message object for local state
+            const fileMessage: WebSocketMessage = {
+                event: 'file',
+                data: {
+                    filename: file.name,
+                    size: file.size
+                },
+                timestamp: new Date(),
+                from: currentUser?.id
+            };
+
+            if (recipient) {
+                fileMessage.to = recipient;
+            }
+            if (topic) {
+                fileMessage.topic = topic;
+            }
+
+            // Add to local messages immediately
+            setMessages(prev => [...prev, fileMessage]);
+
             wsRef.current.sendFile(file, recipient, topic);
         }
-    }, []);
+    }, [currentUser]);
 
     const setAlias = useCallback((alias: string) => {
         if (wsRef.current) {
