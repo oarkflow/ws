@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { MessageCircle, Video, LogOut } from 'lucide-react';
 import ChatApp from './components/chat/ChatApp';
 import CallApp from './components/call/CallApp';
 import Login from './components/Login';
+import { useWebSocket } from './hooks/useWebSocket';
 import './App.css';
 
 interface User {
@@ -83,6 +84,9 @@ function App() {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [userToken, setUserToken] = useState<string>('');
 
+    // Create a single WebSocket connection for the entire app
+    const wsConnection = useWebSocket('ws://localhost:8080/ws', userToken);
+
     const handleLogin = (user: User, token: string) => {
         setCurrentUser(user);
         setUserToken(token);
@@ -96,6 +100,8 @@ function App() {
         setUserToken('');
         localStorage.removeItem('currentUser');
         localStorage.removeItem('userToken');
+        // Disconnect WebSocket when logging out
+        wsConnection.disconnect();
     };
 
     // Check for existing session on app load
@@ -127,11 +133,11 @@ function App() {
                 {/* Navigation with User Info */}
                 <Navigation currentUser={currentUser} onLogout={handleLogout} />
 
-                {/* Routes - Pass user and token to components */}
+                {/* Routes - Pass user, token, and shared WebSocket connection to components */}
                 <main>
                     <Routes>
-                        <Route path="/" element={<ChatApp user={currentUser} token={userToken} />} />
-                        <Route path="/call" element={<CallApp user={currentUser} token={userToken} />} />
+                        <Route path="/" element={<ChatApp user={currentUser} token={userToken} wsConnection={wsConnection} userToken={userToken} />} />
+                        <Route path="/call" element={<CallApp user={currentUser} token={userToken} wsConnection={wsConnection} userToken={userToken} />} />
                     </Routes>
                 </main>
             </div>

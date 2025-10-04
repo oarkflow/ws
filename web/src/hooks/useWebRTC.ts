@@ -26,17 +26,18 @@ export interface WebRTCHook {
     roomId: string | null;
     participantId: string | null;
     chatMessages: ChatMessage[];
-    connect: (roomId: string, displayName: string, authToken?: string) => Promise<void>;
+    connect: (roomId: string, displayName: string, wsConnection?: WebSocket, authToken?: string) => Promise<void>;
     disconnect: () => void;
     toggleMute: () => void;
     toggleVideo: () => void;
     toggleScreenShare: () => void;
     toggleRecording: () => void;
     sendChatMessage: (message: string) => void;
+    sendSignalingMessage: (type: number, data: any) => void;
 }
 
 // WebRTC message types (16-35 for call-specific)
-const MSG_TYPES = {
+export const MSG_TYPES = {
     AUTH: 16,
     JOIN: 17,
     OFFER: 18,
@@ -52,11 +53,7 @@ const MSG_TYPES = {
     CALL_STATE_CHANGED: 28,
     RECORDING_STARTED: 29,
     RECORDING_FINISHED: 30,
-    DIRECT_CALL_INVITE: 31,
-    DIRECT_CALL_ACCEPT: 32,
-    DIRECT_CALL_REJECT: 33,
-    DIRECT_CALL_END: 34,
-    DIRECT_CALL_RINGING: 35,
+    LEAVE: 31,
     CHAT: 36, // Custom for in-call chat
 };
 
@@ -85,11 +82,14 @@ class WebRTCManager {
         { urls: 'stun:stun2.l.google.com:19302' },
     ];
 
-    constructor() {
+    constructor(wsConnection?: WebSocket) {
         this.displayName = '';
+        if (wsConnection) {
+            this.ws = wsConnection;
+        }
     }
 
-    async connect(roomId: string, displayName: string, authToken = 'demo-token') {
+    async connect(roomId: string, displayName: string, wsConnection?: WebSocket, authToken?: string) {
         this.displayName = displayName;
         this.roomId = roomId;
 
@@ -102,24 +102,54 @@ class WebRTCManager {
 
             this.emit('local_stream_ready', this.localStream);
 
-            // Connect to signaling server
-            const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(authToken)}`;
-            this.ws = new WebSocket(wsUrl);
-
-            this.ws.onopen = () => {
+            // Use existing WebSocket connection if provided, otherwise create new one
+            if (wsConnection) {
+                this.ws = wsConnection;
                 this.emit('connected', { roomId });
-                // Authenticate
-                this.sendSignalingMessage(MSG_TYPES.AUTH, { token: authToken });
-                // Join room
-                this.sendSignalingMessage(MSG_TYPES.JOIN, {
-                    room: roomId,
-                    display_name: displayName,
-                    capabilities: {
-                        audio: true,
-                        video: true
-                    }
-                });
-            };
+                // Send auth and join messages immediately if connection is already open
+                if (this.ws.readyState === WebSocket.OPEN) {
+                    this.sendSignalingMessage(MSG_TYPES.AUTH, { token: authToken || 'demo-token' });
+                    this.sendSignalingMessage(MSG_TYPES.JOIN, {
+                        room: roomId,
+                        display_name: displayName,
+                        capabilities: {
+                            audio: true,
+                            video: true
+                        }
+                    });
+                } else {
+                    // Wait for connection to open
+                    this.ws.onopen = () => {
+                        this.emit('connected', { roomId });
+                        this.sendSignalingMessage(MSG_TYPES.AUTH, { token: authToken || 'demo-token' });
+                        this.sendSignalingMessage(MSG_TYPES.JOIN, {
+                            room: roomId,
+                            display_name: displayName,
+                            capabilities: {
+                                audio: true,
+                                video: true
+                            }
+                        });
+                    };
+                }
+            } else {
+                // Create new WebSocket connection (fallback for backward compatibility)
+                const wsUrl = `ws://localhost:8080/ws?token=${encodeURIComponent(authToken || 'demo-token')}`;
+                this.ws = new WebSocket(wsUrl);
+
+                this.ws.onopen = () => {
+                    this.emit('connected', { roomId });
+                    this.sendSignalingMessage(MSG_TYPES.AUTH, { token: authToken || 'demo-token' });
+                    this.sendSignalingMessage(MSG_TYPES.JOIN, {
+                        room: roomId,
+                        display_name: displayName,
+                        capabilities: {
+                            audio: true,
+                            video: true
+                        }
+                    });
+                };
+            }
 
             this.ws.onmessage = (event) => {
                 this.handleSignalingMessage(JSON.parse(event.data));
@@ -140,7 +170,7 @@ class WebRTCManager {
     }
 
     disconnect() {
-        console.log('WebRTC disconnect called - cleaning up all media streams');
+        console.log('WebRTC disconnect called - FORCE cleaning up all media streams');
 
         // Stop recording if active
         if (this.isRecording) {
@@ -159,13 +189,16 @@ class WebRTCManager {
         });
         this.peerConnections.clear();
 
-        // Stop local stream tracks immediately
+        // FORCE stop local stream tracks immediately
         if (this.localStream) {
-            console.log('Stopping local stream tracks:', this.localStream.getTracks().length);
+            console.log('FORCE stopping local stream tracks:', this.localStream.getTracks().length);
             this.localStream.getTracks().forEach((track: MediaStreamTrack) => {
-                console.log('Stopping track:', track.kind, track.label);
-                track.stop();
+                console.log('FORCE stopping track:', track.kind, track.label, 'enabled:', track.enabled, 'readyState:', track.readyState);
+                track.enabled = false; // Disable first
+                track.stop(); // Then stop
+                console.log('Track stopped, readyState:', track.readyState);
             });
+            // Clear the reference
             this.localStream = null;
         }
 
@@ -176,6 +209,15 @@ class WebRTCManager {
         }
 
         this.participants.clear();
+
+        // Clear state
+        this.isMuted = false;
+        this.isVideoOff = false;
+        this.isScreenSharing = false;
+        this.isRecording = false;
+        this.participantId = null;
+        this.roomId = null;
+
         this.emit('disconnected');
     }
 
@@ -185,7 +227,7 @@ class WebRTCManager {
         }
     }
 
-    private handleSignalingMessage(message: any) {
+    public handleSignalingMessage(message: any) {
         const type = message.t;
         const data = message.data;
 
@@ -200,13 +242,13 @@ class WebRTCManager {
                 this.handlePeerLeft(data);
                 break;
             case MSG_TYPES.OFFER:
-                this.handleOffer(data, message.from);
+                this.handleOffer(data, data.from);
                 break;
             case MSG_TYPES.ANSWER:
-                this.handleAnswer(data, message.from);
+                this.handleAnswer(data, data.from);
                 break;
             case MSG_TYPES.ICE_CANDIDATE:
-                this.handleIceCandidate(data, message.from);
+                this.handleIceCandidate(data, data.from);
                 break;
             case MSG_TYPES.MUTE:
                 this.handlePeerMute(message.from);
@@ -217,38 +259,48 @@ class WebRTCManager {
             case MSG_TYPES.CHAT:
                 this.handleChatMessage(data);
                 break;
-            case MSG_TYPES.RECORDING_STARTED:
-                this.emit('recording_started', data);
-                break;
-            case MSG_TYPES.RECORDING_FINISHED:
-                this.emit('recording_finished', data);
+            case MSG_TYPES.CALL_STATE_CHANGED:
+                this.handleCallStateChanged(data);
                 break;
         }
     }
 
     private handleJoined(data: any) {
+        console.log('🎯 WebRTC: Joined room, participant ID:', data.participant_id);
+        console.log('🎯 WebRTC: Room state:', data.room_state);
         this.participantId = data.participant_id;
         this.emit('joined', { participantId: data.participant_id, roomState: data.room_state });
 
-        // Create peer connections for existing participants
+        // Create peer connections for existing participants (excluding self)
         if (data.room_state && data.room_state.participants) {
+            console.log('🎯 WebRTC: All room participants:', data.room_state.participants);
             data.room_state.participants.forEach((p: any) => {
+                console.log('🎯 WebRTC: Checking participant:', p.id, 'vs current:', this.participantId);
                 if (p.id !== this.participantId) {
+                    console.log('🎯 WebRTC: Adding remote participant:', p.display_name, 'ID:', p.id);
                     this.participants.set(p.id, {
                         id: p.id,
-                        displayName: p.display_name,
+                        displayName: p.display_name || `User-${p.id.substring(0, 8)}`,
                         isMuted: false,
                         isVideoOff: false
                     });
+                } else {
+                    console.log('🎯 WebRTC: Skipping self (current participant):', p.display_name);
                 }
             });
+        } else {
+            console.log('🎯 WebRTC: No room state or participants in joined message');
         }
 
-        this.emit('participants_updated', Array.from(this.participants.values()));
+        const participantList = Array.from(this.participants.values());
+        console.log('🎯 WebRTC: Final participants list:', participantList);
+        this.emit('participants_updated', participantList);
     }
 
     private handlePeerJoined(data: any) {
+        console.log('🎯 WebRTC: Peer joined:', data);
         const participant = data.participant;
+        console.log('🎯 WebRTC: Adding participant:', participant.display_name, 'ID:', participant.id);
         this.participants.set(participant.id, {
             id: participant.id,
             displayName: participant.display_name,
@@ -258,11 +310,22 @@ class WebRTCManager {
 
         // Create peer connection and send offer
         this.createPeerConnection(participant.id, true);
+        console.log('🎯 WebRTC: Updated participants list:', Array.from(this.participants.values()));
         this.emit('participants_updated', Array.from(this.participants.values()));
     }
 
     private handlePeerLeft(data: any) {
+        console.log('🎯 WebRTC: Peer left:', data);
         const participantId = data.participant_id;
+
+        // If this is the last participant leaving, end the call for everyone
+        if (this.participants.size <= 1) {
+            console.log('🎯 WebRTC: Last participant leaving, ending call for all');
+            this.disconnect();
+            this.emit('call_ended');
+            return;
+        }
+
         this.participants.delete(participantId);
 
         const pc = this.peerConnections.get(participantId);
@@ -271,6 +334,7 @@ class WebRTCManager {
             this.peerConnections.delete(participantId);
         }
 
+        console.log('🎯 WebRTC: Remaining participants:', Array.from(this.participants.values()));
         this.emit('participants_updated', Array.from(this.participants.values()));
     }
 
@@ -395,6 +459,15 @@ class WebRTCManager {
         };
         this.chatMessages.push(chatMessage);
         this.emit('chat_message', chatMessage);
+    }
+
+    private handleCallStateChanged(data: any) {
+        console.log('🎯 WebRTC: Call state changed:', data);
+        if (data.status === 'ended') {
+            console.log('🎯 WebRTC: Call ended, disconnecting');
+            this.disconnect();
+            this.emit('call_ended');
+        }
     }
 
     toggleMute() {
@@ -552,6 +625,17 @@ class WebRTCManager {
         this.emit('chat_message', chatMessage);
     }
 
+    sendSignalingMessagePublic(type: number, data: any) {
+        console.log('🎯 WebRTC: Sending signaling message:', { type, data });
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            const message = JSON.stringify({ t: type, data });
+            console.log('🎯 WebRTC: Sending WebSocket message:', message);
+            this.ws.send(message);
+        } else {
+            console.log('🎯 WebRTC: WebSocket not ready, state:', this.ws?.readyState);
+        }
+    }
+
     on(event: string, handler: Function) {
         if (!this.eventHandlers[event]) {
             this.eventHandlers[event] = [];
@@ -614,6 +698,12 @@ export function useWebRTC(): WebRTCHook {
         managerRef.current = new WebRTCManager();
         const manager = managerRef.current;
 
+        // Listen for call messages from the shared WebSocket connection
+        const handleCallMessage = (event: CustomEvent) => {
+            manager.handleSignalingMessage(event.detail);
+        };
+        window.addEventListener('websocket-call-message', handleCallMessage as EventListener);
+
         manager.on('local_stream_ready', (stream: MediaStream) => {
             setLocalStream(stream);
         });
@@ -664,14 +754,26 @@ export function useWebRTC(): WebRTCHook {
             setChatMessages(prev => [...prev, message]);
         });
 
+        manager.on('call_ended', () => {
+            console.log('🎯 WebRTC: Call ended event received');
+            // Force cleanup of all state
+            setParticipants([]);
+            setIsConnected(false);
+            setLocalStream(null);
+
+            // Emit custom event for CallScreen to listen to
+            window.dispatchEvent(new CustomEvent('webrtc-call-ended'));
+        });
+
         return () => {
+            window.removeEventListener('websocket-call-message', handleCallMessage as EventListener);
             manager.disconnect();
         };
     }, []);
 
-    const connect = useCallback(async (roomId: string, displayName: string, authToken?: string) => {
+    const connect = useCallback(async (roomId: string, displayName: string, wsConnection?: WebSocket, authToken?: string) => {
         if (managerRef.current) {
-            await managerRef.current.connect(roomId, displayName, authToken);
+            await managerRef.current.connect(roomId, displayName, wsConnection, authToken);
         }
     }, []);
 
@@ -711,6 +813,12 @@ export function useWebRTC(): WebRTCHook {
         }
     }, []);
 
+    const sendSignalingMessagePublic = useCallback((type: number, data: any) => {
+        if (managerRef.current) {
+            managerRef.current.sendSignalingMessagePublic(type, data);
+        }
+    }, []);
+
     return {
         localStream,
         participants,
@@ -728,6 +836,7 @@ export function useWebRTC(): WebRTCHook {
         toggleVideo,
         toggleScreenShare,
         toggleRecording,
-        sendChatMessage
+        sendChatMessage,
+        sendSignalingMessage: sendSignalingMessagePublic
     };
 }

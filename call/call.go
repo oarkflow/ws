@@ -146,6 +146,8 @@ func (m *Manager) HandleSignalingMessage(socketID string, msg ws.Message) {
 		m.handleHold(socket, signalingMsg)
 	case "dtmf":
 		m.handleDTMF(socket, signalingMsg)
+	case "leave":
+		m.handleLeave(socket, signalingMsg)
 	default:
 		log.Printf("Unknown signaling message type: %s", signalingMsg.Type)
 	}
@@ -290,9 +292,10 @@ func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
 		return
 	}
 
-	callID, ok := payload["call_id"].(string)
+	targetID, ok := payload["target_id"].(string)
 	if !ok {
-		callID = ""
+		log.Printf("Missing target_id in offer from %s", socket.ID)
+		return
 	}
 
 	peer := m.getPeer(socket.ID)
@@ -300,16 +303,21 @@ func (m *Manager) handleOffer(socket *ws.Socket, msg ws.SignalingMessage) {
 		return
 	}
 
-	// Forward offer to other participants in the room
+	// Forward offer to specific target participant
+	targetPeer := m.getPeer(targetID)
+	if targetPeer == nil {
+		log.Printf("Target peer %s not found for offer from %s", targetID, socket.ID)
+		return
+	}
+
 	offerMsg := ws.Message{
 		T: ws.MsgOffer,
 		Data: map[string]any{
-			"sdp":     sdp,
-			"call_id": callID,
-			"from":    socket.ID,
+			"sdp":  sdp,
+			"from": socket.ID,
 		},
 	}
-	m.broadcastToRoomExcept(peer.RoomID, offerMsg, socket.ID)
+	targetPeer.Socket.SendMessage(offerMsg)
 }
 
 // handleAnswer handles WebRTC answer
@@ -324,9 +332,10 @@ func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
 		return
 	}
 
-	callID, ok := payload["call_id"].(string)
+	targetID, ok := payload["target_id"].(string)
 	if !ok {
-		callID = ""
+		log.Printf("Missing target_id in answer from %s", socket.ID)
+		return
 	}
 
 	peer := m.getPeer(socket.ID)
@@ -334,16 +343,21 @@ func (m *Manager) handleAnswer(socket *ws.Socket, msg ws.SignalingMessage) {
 		return
 	}
 
-	// Forward answer to the target participant
+	// Forward answer to specific target participant
+	targetPeer := m.getPeer(targetID)
+	if targetPeer == nil {
+		log.Printf("Target peer %s not found for answer from %s", targetID, socket.ID)
+		return
+	}
+
 	answerMsg := ws.Message{
 		T: ws.MsgAnswer,
 		Data: map[string]any{
-			"sdp":     sdp,
-			"call_id": callID,
-			"from":    socket.ID,
+			"sdp":  sdp,
+			"from": socket.ID,
 		},
 	}
-	m.broadcastToRoomExcept(peer.RoomID, answerMsg, socket.ID)
+	targetPeer.Socket.SendMessage(answerMsg)
 }
 
 // handleICECandidate handles ICE candidates
@@ -353,19 +367,15 @@ func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage)
 		return
 	}
 
-	candidate, ok := payload["candidate"].(string)
+	candidateData, ok := payload["candidate"]
 	if !ok {
 		return
 	}
 
-	sdpMid, ok := payload["sdpMid"].(string)
+	targetID, ok := payload["target_id"].(string)
 	if !ok {
-		sdpMid = ""
-	}
-
-	sdpMLineIndex, ok := payload["sdpMLineIndex"].(float64)
-	if !ok {
-		sdpMLineIndex = 0
+		log.Printf("Missing target_id in ICE candidate from %s", socket.ID)
+		return
 	}
 
 	peer := m.getPeer(socket.ID)
@@ -373,17 +383,21 @@ func (m *Manager) handleICECandidate(socket *ws.Socket, msg ws.SignalingMessage)
 		return
 	}
 
-	// Forward ICE candidate to other participants
+	// Forward ICE candidate to specific target participant
+	targetPeer := m.getPeer(targetID)
+	if targetPeer == nil {
+		log.Printf("Target peer %s not found for ICE candidate from %s", targetID, socket.ID)
+		return
+	}
+
 	iceMsg := ws.Message{
 		T: ws.MsgIceCandidate,
 		Data: map[string]any{
-			"candidate":     candidate,
-			"sdpMid":        sdpMid,
-			"sdpMLineIndex": int(sdpMLineIndex),
-			"from":          socket.ID,
+			"candidate": candidateData,
+			"from":      socket.ID,
 		},
 	}
-	m.broadcastToRoomExcept(peer.RoomID, iceMsg, socket.ID)
+	targetPeer.Socket.SendMessage(iceMsg)
 }
 
 // handleMute handles mute/unmute
@@ -494,6 +508,75 @@ func (m *Manager) handleDTMF(socket *ws.Socket, msg ws.SignalingMessage) {
 	m.broadcastToRoomExcept(peer.RoomID, dtmfMsg, socket.ID)
 }
 
+// handleLeave handles call leave
+func (m *Manager) handleLeave(socket *ws.Socket, msg ws.SignalingMessage) {
+	log.Printf("🎯 CallManager: Handling LEAVE message from socket %s", socket.ID)
+	peer := m.getPeer(socket.ID)
+	if peer == nil {
+		log.Printf("🎯 CallManager: Peer not found for socket %s", socket.ID)
+		return
+	}
+
+	// Remove from room
+	room := m.getRoom(peer.RoomID)
+	if room != nil {
+		room.mu.Lock()
+		participantCount := len(room.Participants)
+		delete(room.Participants, socket.ID)
+		roomEmpty := len(room.Participants) == 0
+		room.mu.Unlock()
+
+		log.Printf("🎯 CallManager: Room %s had %d participants, now has %d", peer.RoomID, participantCount, len(room.Participants))
+
+		// Notify others that peer left
+		peerLeftMsg := ws.Message{
+			T: ws.MsgPeerLeft,
+			Data: map[string]any{
+				"participant_id": socket.ID,
+			},
+		}
+		m.broadcastToRoomExceptPtr(room, peerLeftMsg, socket.ID)
+
+		// For 1-1 calls (2 participants total), when one leaves, end call for remaining participant
+		if participantCount == 2 && !roomEmpty {
+			log.Printf("🎯 CallManager: 1-1 call detected, sending CALL_STATE_CHANGED to remaining participant")
+			callEndedMsg := ws.Message{
+				T: ws.MsgCallStateChanged,
+				Data: map[string]any{
+					"status":  "ended",
+					"room_id": room.ID,
+					"reason":  "peer_left",
+				},
+			}
+			// Send to remaining participant
+			for _, p := range room.Participants {
+				log.Printf("🎯 CallManager: Sending call_ended to socket %s", p.Socket.ID)
+				p.Socket.SendMessage(callEndedMsg)
+			}
+		}
+
+		// If room is empty, clean up immediately
+		if roomEmpty {
+			log.Printf("🎯 CallManager: Room %s is now empty, cleaning up", peer.RoomID)
+			m.mu.Lock()
+			delete(m.rooms, peer.RoomID)
+			m.mu.Unlock()
+		}
+
+		// If room is empty, clean up
+		if roomEmpty {
+			m.mu.Lock()
+			delete(m.rooms, peer.RoomID)
+			m.mu.Unlock()
+		}
+	}
+
+	// Remove peer
+	m.mu.Lock()
+	delete(m.peers, socket.ID)
+	m.mu.Unlock()
+}
+
 // HandleDisconnect handles peer disconnection
 func (m *Manager) HandleDisconnect(socketID string) {
 	peer := m.getPeer(socketID)
@@ -521,7 +604,9 @@ func (m *Manager) HandleDisconnect(socketID string) {
 	room := m.getRoom(peer.RoomID)
 	if room != nil {
 		room.mu.Lock()
+		participantCount := len(room.Participants)
 		delete(room.Participants, socketID)
+		roomEmpty := len(room.Participants) == 0
 		room.mu.Unlock()
 
 		// Notify others
@@ -533,8 +618,25 @@ func (m *Manager) HandleDisconnect(socketID string) {
 		}
 		m.broadcastToRoomExceptPtr(room, peerLeftMsg, socketID)
 
-		// If room is empty, clean up
-		if len(room.Participants) == 0 {
+		// For 1-1 calls (2 participants total), when one leaves, end call for remaining participant
+		if participantCount == 2 && !roomEmpty {
+			callEndedMsg := ws.Message{
+				T: ws.MsgCallStateChanged,
+				Data: map[string]any{
+					"status":  "ended",
+					"room_id": room.ID,
+					"reason":  "peer_left",
+				},
+			}
+			// Send to remaining participant
+			for _, p := range room.Participants {
+				p.Socket.SendMessage(callEndedMsg)
+			}
+		}
+
+		// If room is empty, clean up immediately
+		if roomEmpty {
+			log.Printf("🎯 CallManager: Room %s is now empty, cleaning up", peer.RoomID)
 			m.mu.Lock()
 			delete(m.rooms, peer.RoomID)
 			m.mu.Unlock()

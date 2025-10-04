@@ -37,6 +37,7 @@ export interface WebSocketHook {
     sendPing: () => void;
     requestUserList: () => void;
     clearMessages: () => void;
+    onCallMessage?: (callback: (data: any) => void) => void;
 }
 
 class WebSocketConnection {
@@ -441,8 +442,12 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
                 }
             };
 
-            // Only add to messages if it's not a call message
-            if (!isCallMessage(data.data)) {
+            // Handle call messages - emit them for WebRTC hook to handle
+            if (isCallMessage(data.data)) {
+                // Emit call message for WebRTC hook to handle through a custom event
+                window.dispatchEvent(new CustomEvent('websocket-call-message', { detail: data }));
+            } else {
+                // Add regular direct messages to chat
                 const message: WebSocketMessage = {
                     ...data,
                     event: 'direct',

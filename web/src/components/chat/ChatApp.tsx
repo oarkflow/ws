@@ -17,9 +17,11 @@ interface User {
 interface ChatAppProps {
     user: User;
     token: string;
+    wsConnection: any; // WebSocket hook
+    userToken: string; // Actual user token
 }
 
-const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
+const ChatApp: React.FC<ChatAppProps> = ({ user, token, wsConnection, userToken }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [currentUserAlias, setCurrentUserAlias] = useState('');
     const [messageType, setMessageType] = useState<'broadcast' | 'direct' | 'topic'>('broadcast');
@@ -52,7 +54,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
         requestUserList,
         clearMessages,
         wsRef
-    } = useWebSocket('ws://localhost:8080/ws', token);
+    } = wsConnection;
 
 
     // Show toast notifications for connection state changes
@@ -244,6 +246,10 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
         // Generate a unique room ID for the call
         const roomId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+        // Get the actual display name (prefer login user name over WebSocket alias)
+        const actualDisplayName = user.name || user.email || currentUserAlias || `User-${currentUser?.id?.substring(0, 8)}`;
+        console.log('📞 STARTING CALL - Display name:', actualDisplayName, 'from login user:', user.name, 'WebSocket alias:', currentUserAlias);
+
         // Immediately show outgoing call dialog
         setOutgoingCall({ recipientId, type });
         console.log('📞 OUTGOING CALL DIALOG SHOWN for:', type, 'call to:', recipientId);
@@ -254,7 +260,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
             callType: type,
             roomId: roomId,
             callerId: currentUser?.id,
-            callerName: currentUserAlias,
+            callerName: actualDisplayName,
             recipientId: recipientId,
             timestamp: Date.now()
         };
@@ -265,7 +271,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
         sendMessage(JSON.stringify(callData), 'direct', recipientId);
     };
 
-    const handleAcceptCall = (callId: string) => {
+    const handleAcceptCall = (_callId: string) => {
         if (!incomingCall) return;
 
         console.log('Accepting call:', incomingCall);
@@ -293,7 +299,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
         sendMessage(JSON.stringify(acceptData), 'direct', incomingCall.callerId);
     };
 
-    const handleRejectCall = (callId: string) => {
+    const handleRejectCall = (_callId: string) => {
         if (!incomingCall) return;
 
         console.log('Rejecting call - ensuring media cleanup');
@@ -435,10 +441,11 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
                 <div className="fixed inset-0 bg-slate-900 z-50">
                     <CallScreen
                         roomId={currentCall.roomId}
-                        displayName={currentUserAlias}
-                        authToken="demo-token"
-                        currentUserId={currentUser?.id}
+                        displayName={user.name || user.email || currentUserAlias}
+                        authToken={userToken}
                         onLeaveCall={handleLeaveCall}
+                        wsConnection={wsConnection}
+                        userToken={userToken}
                     />
                 </div>
             )}

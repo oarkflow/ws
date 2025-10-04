@@ -37,6 +37,7 @@ const (
 	MsgCallStateChanged  = 28
 	MsgRecordingStarted  = 29
 	MsgRecordingFinished = 30
+	MsgLeave             = 31
 )
 
 // Message represents the unified message format
@@ -113,6 +114,8 @@ func stringToMsgType(event string) int {
 		return MsgRecordingStarted
 	case "recording-finished":
 		return MsgRecordingFinished
+	case "leave":
+		return MsgLeave
 	default:
 		return MsgSystem // Default to system message
 	}
@@ -181,6 +184,8 @@ func msgTypeToString(msgType int) string {
 		return "recording-started"
 	case MsgRecordingFinished:
 		return "recording-finished"
+	case MsgLeave:
+		return "leave"
 	default:
 		return "unknown"
 	}

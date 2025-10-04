@@ -592,9 +592,9 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 			}
 		}
 
-	case MsgAuth, MsgJoin, MsgOffer, MsgAnswer, MsgIceCandidate, MsgMute, MsgUnmute, MsgHold, MsgDTMF:
+	case MsgAuth, MsgJoin, MsgOffer, MsgAnswer, MsgIceCandidate, MsgMute, MsgUnmute, MsgHold, MsgDTMF, MsgLeave:
 		// Handle WebRTC signaling messages
-		log.Printf("Routing WebRTC message to call manager: type=%d", msg.T)
+		log.Printf("🎯 Server: Routing WebRTC message to call manager: type=%d (%s), socket=%s", msg.T, msgTypeToString(msg.T), socket.ID)
 		if s.callManager != nil {
 			s.callManager.HandleSignalingMessage(socket.ID, msg)
 		} else {

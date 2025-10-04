@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Menu, MessageSquare, Trash2, Zap, Globe, User, Hash, Send, Upload, Phone, Video, PhoneOff } from 'lucide-react';
+import { Menu, MessageSquare, Trash2, Zap, Globe, User, Hash, Send, Upload, Phone, Video } from 'lucide-react';
 
 interface User {
     id: string;
@@ -70,15 +70,6 @@ const MainContent: React.FC<MainContentProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const typingTimerRef = useRef<number | null>(null);
     const typingDelay = 1000; // 1 second delay
-
-    // Calculate message stats
-    const messageStats = {
-        total: messages.length,
-        broadcast: messages.filter(m => m.event === 'broadcast').length,
-        direct: messages.filter(m => m.event === 'direct').length,
-        topic: messages.filter(m => m.event === 'topic' || m.event === 'published').length,
-        file: messages.filter(m => m.event === 'file').length
-    };
 
     const handleSendMessage = () => {
         if (messageInput.trim()) {

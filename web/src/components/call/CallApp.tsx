@@ -13,9 +13,11 @@ interface User {
 interface CallAppProps {
     user: User;
     token: string;
+    wsConnection: any; // WebSocket hook
+    userToken: string; // Actual user token
 }
 
-const CallApp: React.FC<CallAppProps> = ({ user, token }) => {
+const CallApp: React.FC<CallAppProps> = ({ user: _user, token: _token, wsConnection, userToken }) => {
     const [inCall, setInCall] = useState(false);
     const [roomId, setRoomId] = useState('');
     const [displayName, setDisplayName] = useState('');
@@ -45,6 +47,8 @@ const CallApp: React.FC<CallAppProps> = ({ user, token }) => {
                 displayName={displayName}
                 authToken={authToken}
                 onLeaveCall={handleLeaveCall}
+                wsConnection={wsConnection}
+                userToken={userToken}
             />
         );
     }

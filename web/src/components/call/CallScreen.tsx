@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings, MessageCircle, PhoneOff, Mic, MicOff, Video, VideoOff, Monitor, Circle, X } from 'lucide-react';
-import { useWebRTC } from '../../hooks/useWebRTC';
+import { useWebRTC, MSG_TYPES } from '../../hooks/useWebRTC';
 import { getAudioToneManager } from '../../utils/audioTones';
 import ErrorModal from '../common/ErrorModal';
 
@@ -9,7 +9,8 @@ interface CallScreenProps {
     displayName: string;
     authToken: string;
     onLeaveCall: () => void;
-    currentUserId?: string;
+    wsConnection: any; // WebSocket hook
+    userToken?: string; // Actual user token for WebRTC
 }
 
 const CallScreen: React.FC<CallScreenProps> = ({
@@ -17,7 +18,8 @@ const CallScreen: React.FC<CallScreenProps> = ({
     displayName,
     authToken,
     onLeaveCall,
-    currentUserId
+    wsConnection,
+    userToken
 }) => {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
@@ -45,25 +47,56 @@ const CallScreen: React.FC<CallScreenProps> = ({
         toggleScreenShare,
         toggleRecording: webrtcToggleRecording,
         sendChatMessage,
+        sendSignalingMessage,
         chatMessages
     } = useWebRTC();
+
+    // Handle call ended by remote participant
+    useEffect(() => {
+        const handleCallEnded = () => {
+            console.log('🎥 CallScreen: Call ended by remote participant');
+            // Auto-leave the call
+            setTimeout(() => {
+                onLeaveCall();
+            }, 1000); // Give time for user to see what happened
+        };
+
+        // Listen for call ended event (this would need to be added to useWebRTC hook)
+        window.addEventListener('webrtc-call-ended', handleCallEnded);
+
+        return () => {
+            window.removeEventListener('webrtc-call-ended', handleCallEnded);
+        };
+    }, [onLeaveCall]);
 
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
-        // Connect to WebRTC room
-        connect(roomId, displayName, authToken);
+        console.log('🎥 CallScreen: Connecting to WebRTC room:', roomId);
+        // Connect to WebRTC room using shared WebSocket connection
+        connect(roomId, displayName, wsConnection.wsRef.current?.ws, userToken);
 
         // Resume audio context on user interaction
         audioManager.current.resume();
 
         return () => {
-            console.log('Cleaning up CallScreen - disconnecting WebRTC');
+            console.log('🎥 CallScreen: FORCE cleaning up - disconnecting WebRTC');
+            // FORCE disable all tracks first before disconnect
+            if (localStream) {
+                const tracks = localStream.getTracks();
+                console.log('🎥 FORCE cleanup - stopping', tracks.length, 'tracks');
+                tracks.forEach((track: MediaStreamTrack) => {
+                    console.log('🎥 FORCE cleanup disabling track:', track.kind, track.label, 'readyState:', track.readyState);
+                    track.enabled = false;
+                    track.stop();
+                    console.log('🎥 Track stopped, new readyState:', track.readyState);
+                });
+            }
             disconnect();
             audioManager.current.stopAllTones();
         };
-    }, [roomId, displayName, authToken]); // Removed connect, disconnect, localStream to prevent infinite loop
+    }, [roomId, displayName, authToken]); // Remove function dependencies to prevent infinite loop
 
     useEffect(() => {
         // Set local video stream
@@ -116,10 +149,23 @@ const CallScreen: React.FC<CallScreenProps> = ({
     };
 
     const handleLeaveCall = () => {
-        console.log('User initiated call leave - cleaning up media streams');
+        console.log('🎥 User initiated call leave - sending leave message and cleaning up');
         audioManager.current.playEndCallTone();
 
-        // Disconnect WebRTC (this will stop all tracks)
+        // Send leave message to notify other participants
+        console.log('🎥 Sending LEAVE message to backend');
+        sendSignalingMessage(MSG_TYPES.LEAVE, {});
+
+        // FORCE disable all tracks first
+        if (localStream) {
+            localStream.getTracks().forEach((track: MediaStreamTrack) => {
+                console.log('🎥 FORCE disabling track:', track.kind, track.label);
+                track.enabled = false;
+                track.stop();
+            });
+        }
+
+        // Disconnect WebRTC
         disconnect();
 
         setTimeout(() => {
