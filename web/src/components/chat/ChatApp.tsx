@@ -11,6 +11,7 @@ interface User {
     name: string;
     email: string;
     avatar: string;
+    alias?: string;
 }
 
 interface ChatAppProps {
@@ -60,6 +61,19 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
             requestUserList();
         }
     }, [isConnected]);
+
+    // Set alias immediately when component mounts (user data is available from login)
+    useEffect(() => {
+        // Use name from login, or email if no name, or fallback to existing alias
+        const displayAlias = user.name || user.email || user.alias || `User-${user.id.substring(0, 8)}`;
+        console.log('🔄 SETTING ALIAS FROM LOGIN USER:', displayAlias, 'from:', { name: user.name, email: user.email, alias: user.alias });
+        setCurrentUserAlias(displayAlias);
+
+        // Set alias on WebSocket when connected
+        if (isConnected) {
+            setAlias(displayAlias);
+        }
+    }, [user.name, user.email, user.alias, setAlias, isConnected]);
 
     // Update current user alias when it changes
     useEffect(() => {
@@ -164,8 +178,6 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
                 showToast(`${lastMessage.data.alias || 'A user'} joined`, 'info');
             } else if (lastMessage.data && lastMessage.data.type === 'user_disconnected') {
                 showToast(`${lastMessage.data.alias || 'A user'} left`, 'info');
-            } else if (lastMessage.data && lastMessage.data.type === 'alias_change') {
-                showToast(`User changed name to ${lastMessage.data.newAlias}`, 'info');
             }
         }
     }, [messages, currentUser, outgoingCall, incomingCall, wsRef]);
@@ -284,6 +296,13 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
     const handleRejectCall = (callId: string) => {
         if (!incomingCall) return;
 
+        console.log('Rejecting call - ensuring media cleanup');
+
+        // Stop any existing media streams from previous calls
+        if (currentCall) {
+            setCurrentCall(null);
+        }
+
         setIncomingCall(null);
 
         // Send rejection back to caller
@@ -299,6 +318,13 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
     const handleCancelCall = () => {
         if (!outgoingCall) return;
 
+        console.log('Cancelling call - ensuring media cleanup');
+
+        // Stop any existing media streams from previous calls
+        if (currentCall) {
+            setCurrentCall(null);
+        }
+
         setOutgoingCall(null);
 
         // Send cancellation to recipient
@@ -312,6 +338,8 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
     };
 
     const handleLeaveCall = () => {
+        console.log('Call ended - ensuring complete cleanup');
+
         // Stop any outgoing call state
         setOutgoingCall(null);
 
@@ -409,6 +437,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
                         roomId={currentCall.roomId}
                         displayName={currentUserAlias}
                         authToken="demo-token"
+                        currentUserId={currentUser?.id}
                         onLeaveCall={handleLeaveCall}
                     />
                 </div>

@@ -6,6 +6,7 @@ interface User {
     name: string;
     email: string;
     avatar: string;
+    alias?: string;
 }
 
 interface LoginProps {
@@ -39,7 +40,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         if (selectedUser) {
             // Generate unique token for the user
             const token = `token_${selectedUser.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            onLogin(selectedUser, token);
+
+            // Auto-set alias to name, or email if no name
+            const autoAlias = selectedUser.name || selectedUser.email || selectedUser.id;
+
+            // Create user object with auto-set alias
+            const userWithAlias = {
+                ...selectedUser,
+                alias: autoAlias
+            };
+
+            console.log('🔐 LOGIN USER:', userWithAlias);
+            onLogin(userWithAlias, token);
         }
     };
 
@@ -62,14 +74,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                             key={user.id}
                             onClick={() => handleUserSelect(user)}
                             className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${selectedUser?.id === user.id
-                                    ? 'border-blue-500 bg-blue-50'
-                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                                 }`}
                         >
                             <div className="flex items-center space-x-4">
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold ${selectedUser?.id === user.id
-                                        ? 'bg-blue-600 text-white'
-                                        : 'bg-gray-200 text-gray-700'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-200 text-gray-700'
                                     }`}>
                                     {user.avatar}
                                 </div>
@@ -78,8 +90,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                                     <p className="text-sm text-gray-600">{user.email}</p>
                                 </div>
                                 <div className={`w-4 h-4 rounded-full border-2 ${selectedUser?.id === user.id
-                                        ? 'border-blue-500 bg-blue-500'
-                                        : 'border-gray-300'
+                                    ? 'border-blue-500 bg-blue-500'
+                                    : 'border-gray-300'
                                     }`}>
                                     {selectedUser?.id === user.id && (
                                         <div className="w-full h-full rounded-full bg-white scale-50"></div>
@@ -95,8 +107,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     onClick={handleLogin}
                     disabled={!selectedUser}
                     className={`w-full py-3 px-6 rounded-xl font-semibold text-white transition-all ${selectedUser
-                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
-                            : 'bg-gray-300 cursor-not-allowed'
+                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5'
+                        : 'bg-gray-300 cursor-not-allowed'
                         }`}
                 >
                     {selectedUser ? `Continue as ${selectedUser.name}` : 'Select a user to continue'}

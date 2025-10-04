@@ -9,13 +9,15 @@ interface CallScreenProps {
     displayName: string;
     authToken: string;
     onLeaveCall: () => void;
+    currentUserId?: string;
 }
 
 const CallScreen: React.FC<CallScreenProps> = ({
     roomId,
     displayName,
     authToken,
-    onLeaveCall
+    onLeaveCall,
+    currentUserId
 }) => {
     const [isMuted, setIsMuted] = useState(false);
     const [isVideoOff, setIsVideoOff] = useState(false);
@@ -57,19 +59,11 @@ const CallScreen: React.FC<CallScreenProps> = ({
         audioManager.current.resume();
 
         return () => {
-            console.log('Cleaning up CallScreen - stopping media streams');
+            console.log('Cleaning up CallScreen - disconnecting WebRTC');
             disconnect();
             audioManager.current.stopAllTones();
-
-            // Force stop all media tracks
-            if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    console.log('Stopping track:', track.kind);
-                    track.stop();
-                });
-            }
         };
-    }, [roomId, displayName, authToken, connect, disconnect, localStream]);
+    }, [roomId, displayName, authToken]); // Removed connect, disconnect, localStream to prevent infinite loop
 
     useEffect(() => {
         // Set local video stream
@@ -125,16 +119,10 @@ const CallScreen: React.FC<CallScreenProps> = ({
         console.log('User initiated call leave - cleaning up media streams');
         audioManager.current.playEndCallTone();
 
-        // Immediately stop all local media tracks
-        if (localStream) {
-            localStream.getTracks().forEach((track: MediaStreamTrack) => {
-                console.log('Stopping local track:', track.kind, track.label);
-                track.stop();
-            });
-        }
+        // Disconnect WebRTC (this will stop all tracks)
+        disconnect();
 
         setTimeout(() => {
-            disconnect();
             onLeaveCall();
         }, 600); // Wait for tone to finish
     };

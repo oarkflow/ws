@@ -11,6 +11,7 @@ interface User {
     name: string;
     email: string;
     avatar: string;
+    alias?: string;
 }
 
 function Navigation({ currentUser, onLogout }: { currentUser: User; onLogout: () => void }) {

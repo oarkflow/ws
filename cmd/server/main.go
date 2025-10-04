@@ -44,12 +44,13 @@ func main() {
 	hub.OnConnect(func(socket *ws.Socket) {
 		log.Printf("Client connected: %s", socket.ID)
 
-		// Send welcome message with user ID
+		// Send welcome message with user ID (alias will be set later by client)
 		welcomeMsg := ws.Message{
 			T: ws.MsgSystem,
 			Data: map[string]any{
 				"message": "Connected to WebSocket server",
 				"id":      socket.ID,
+				"alias":   socket.GetAlias(), // Will be empty initially, client will set it
 				"type":    "welcome",
 			},
 		}

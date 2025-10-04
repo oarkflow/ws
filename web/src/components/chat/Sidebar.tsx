@@ -3,7 +3,10 @@ import { MessageCircle, Users, Rss, X, Check, Wifi, WifiOff, RefreshCw, Plus } f
 
 interface User {
     id: string;
-    alias: string;
+    alias?: string;
+    name?: string;
+    email?: string;
+    avatar?: string;
 }
 
 interface SidebarProps {
@@ -155,7 +158,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                     {users.map((user) => {
                         const isCurrentUser = currentUserId && user.id === currentUserId;
-                        console.log('User:', user, 'Current User ID:', currentUserId, 'Is Current:', isCurrentUser);
                         return (
                             <div
                                 key={user.id}

@@ -3,7 +3,10 @@ import { Menu, MessageSquare, Trash2, Zap, Globe, User, Hash, Send, Upload, Phon
 
 interface User {
     id: string;
-    alias: string;
+    alias?: string;
+    name?: string;
+    email?: string;
+    avatar?: string;
 }
 
 interface WebSocketMessage {
@@ -269,38 +272,6 @@ const MainContent: React.FC<MainContentProps> = ({
 
             {/* Main Dashboard */}
             <div className="p-6 space-y-6">
-                {/* Message Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
-                    <div className="bg-white rounded-lg border border-slate-200 p-4">
-                        <div className="text-sm text-slate-600 mb-1">Total Messages</div>
-                        <div className="text-2xl font-bold text-slate-800">{messageStats.total}</div>
-                    </div>
-                    <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
-                        <div className="text-sm text-blue-600 mb-1 flex items-center">
-                            <Globe className="w-4 h-4 mr-1" />
-                            Broadcast
-                        </div>
-                        <div className="text-2xl font-bold text-blue-700">{messageStats.broadcast}</div>
-                    </div>
-                    <div className="bg-green-50 rounded-lg border border-green-200 p-4">
-                        <div className="text-sm text-green-600 mb-1 flex items-center">
-                            <User className="w-4 h-4 mr-1" />
-                            Direct
-                        </div>
-                        <div className="text-2xl font-bold text-green-700">{messageStats.direct}</div>
-                    </div>
-                    <div className="bg-purple-50 rounded-lg border border-purple-200 p-4">
-                        <div className="text-sm text-purple-600 mb-1 flex items-center">
-                            <Hash className="w-4 h-4 mr-1" />
-                            Topics
-                        </div>
-                        <div className="text-2xl font-bold text-purple-700">{messageStats.topic}</div>
-                    </div>
-                    <div className="bg-orange-50 rounded-lg border border-orange-200 p-4">
-                        <div className="text-sm text-orange-600 mb-1">Files</div>
-                        <div className="text-2xl font-bold text-orange-700">{messageStats.file}</div>
-                    </div>
-                </div>
 
                 {/* Messages */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
