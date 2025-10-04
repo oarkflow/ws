@@ -656,12 +656,14 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 
 	// Create file message with metadata for broadcasting
 	fileMsg := Message{
-		T: MsgFile,
+		T:    MsgFile,
+		From: socket.GetAlias(),
 		Data: map[string]any{
 			"filename": "unknown",
 			"size":     0,
 			"from":     socket.GetAlias(),
 		},
+		ID: generateMessageID(),
 	}
 
 	// Extract metadata from pending file if available
@@ -678,8 +680,12 @@ func (s *Server) handleBinaryMessage(socket *Socket, payload []byte) {
 
 	// Use the pending metadata to route the file
 	if socket.pendingFile.To != "" {
-		// Send to specific socket
-		s.hub.Emit(socket.pendingFile.To, "file", fileMsg.Data)
+		// Send to specific socket (direct message)
+		fileMsg.To = socket.pendingFile.To
+		// Send the file metadata message directly to the recipient
+		if targetSocket := s.hub.GetSocket(socket.pendingFile.To); targetSocket != nil {
+			targetSocket.SendMessage(fileMsg)
+		}
 		s.hub.EmitBinary(socket.pendingFile.To, payload)
 		log.Printf("Sent binary file to %s from %s", socket.pendingFile.To, socket.ID)
 	} else if socket.pendingFile.Topic != "" {

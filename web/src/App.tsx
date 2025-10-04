@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { MessageCircle, Video, LogOut } from 'lucide-react';
-import ChatApp from './components/chat/ChatApp';
+import ChatApp from './components/chat/NewChatApp';
 import CallApp from './components/call/CallApp';
 import Login from './components/Login';
 import { useWebSocket } from './hooks/useWebSocket';

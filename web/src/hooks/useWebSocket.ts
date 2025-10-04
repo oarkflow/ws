@@ -50,6 +50,10 @@ class WebSocketConnection {
     public userAlias: string | null = null;
     public lastFileMetadata: any = null;
     private fileDownloadUrls: Map<string, string> = new Map();
+    private reconnectAttempts = 0;
+    private maxReconnectAttempts = 10;
+    private reconnectTimeout: number | null = null;
+    private shouldReconnect = true;
 
     constructor(url: string, token?: string) {
         this.url = url;
@@ -71,7 +75,14 @@ class WebSocketConnection {
             this.ws.binaryType = 'arraybuffer';
 
             this.ws.onopen = (event) => {
+                // Reset reconnect attempts on successful connection
+                this.reconnectAttempts = 0;
                 this.emit('open', event);
+
+                // Re-subscribe to all topics after reconnection
+                this.subscriptions.forEach(topic => {
+                    this.subscribe(topic);
+                });
             };
 
             this.ws.onmessage = (event) => {
@@ -84,7 +95,18 @@ class WebSocketConnection {
 
             this.ws.onclose = (event) => {
                 this.emit('close', event);
-                // Auto-reconnect is disabled - no automatic reconnection
+
+                // Auto-reconnect with exponential backoff
+                if (this.shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+                    this.reconnectAttempts++;
+
+                    console.log(`WebSocket closed. Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+
+                    this.reconnectTimeout = window.setTimeout(() => {
+                        this.connect();
+                    }, delay);
+                }
             };
 
             this.ws.onerror = (event) => {
@@ -97,6 +119,11 @@ class WebSocketConnection {
     }
 
     disconnect() {
+        this.shouldReconnect = false;
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
         if (this.ws) {
             this.ws.close();
             this.ws = null;
@@ -561,15 +588,20 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
 
     const sendFile = useCallback((file: File, recipient?: string, topic?: string) => {
         if (wsRef.current) {
-            // Create file message object for local state
+            // Create local preview URL for sender to see their file immediately
+            const localUrl = URL.createObjectURL(file);
+
+            // Create file message object for local state (sender sees their own file immediately)
             const fileMessage: WebSocketMessage = {
                 event: 'file',
                 data: {
                     filename: file.name,
-                    size: file.size
+                    size: file.size,
+                    downloadUrl: localUrl  // Add local URL for sender preview
                 },
                 timestamp: new Date(),
-                from: currentUser?.id
+                from: currentUser?.id || currentUser?.alias,  // Use ID first for consistency
+                id: `file-${Date.now()}-${Math.random()}`
             };
 
             if (recipient) {
@@ -579,7 +611,7 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
                 fileMessage.topic = topic;
             }
 
-            // Add to local messages immediately
+            // Add to local messages immediately for sender
             setMessages(prev => [...prev, fileMessage]);
 
             wsRef.current.sendFile(file, recipient, topic);
