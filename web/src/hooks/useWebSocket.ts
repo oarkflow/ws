@@ -25,6 +25,7 @@ export interface WebSocketHook {
     messages: WebSocketMessage[];
     currentUser: User | null;
     isTyping: boolean;
+    wsRef: React.MutableRefObject<WebSocketConnection | null>;
     connect: () => void;
     disconnect: () => void;
     sendMessage: (message: string, type: 'broadcast' | 'direct' | 'topic', recipient?: string, topic?: string) => void;
@@ -245,10 +246,7 @@ class WebSocketConnection {
     off(event: string, handler?: Function) {
         if (this.eventHandlers[event]) {
             if (handler) {
-                const index = this.eventHandlers[event].indexOf(handler);
-                if (index > -1) {
-                    this.eventHandlers[event].splice(index, 1);
-                }
+                this.eventHandlers[event] = this.eventHandlers[event].filter(h => h !== handler);
             } else {
                 delete this.eventHandlers[event];
             }
@@ -417,12 +415,41 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         });
 
         ws.on('direct', (data: any) => {
-            const message: WebSocketMessage = {
-                ...data,
-                event: 'direct',
-                timestamp: new Date()
+            const isCallMessage = (msgData: any) => {
+                try {
+                    let messageData = msgData;
+
+                    // If data is an object with a message field, check that too
+                    if (messageData && typeof messageData === 'object' && messageData.message) {
+                        messageData = typeof messageData.message === 'string' ? JSON.parse(messageData.message) : messageData.message;
+                    } else if (typeof messageData === 'string') {
+                        messageData = JSON.parse(messageData);
+                    }
+
+                    return messageData && messageData.type && (
+                        messageData.type === 'call_invitation' ||
+                        messageData.type === 'call_accepted' ||
+                        messageData.type === 'call_rejected' ||
+                        messageData.type === 'call_cancelled'
+                    );
+                } catch (e) {
+                    // Check if it's a string containing call_invitation
+                    if (typeof msgData === 'string' && msgData.includes('call_invitation')) {
+                        return true;
+                    }
+                    return false;
+                }
             };
-            setMessages(prev => [...prev, message]);
+
+            // Only add to messages if it's not a call message
+            if (!isCallMessage(data.data)) {
+                const message: WebSocketMessage = {
+                    ...data,
+                    event: 'direct',
+                    timestamp: new Date()
+                };
+                setMessages(prev => [...prev, message]);
+            }
         });
 
         ws.on('published', (data: any) => {
@@ -435,7 +462,6 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         });
 
         ws.on('file', (data: any) => {
-            // Store file metadata for use in file_received handler
             ws.lastFileMetadata = data;
         });
 
@@ -449,10 +475,19 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         });
 
         ws.on('system', (data: any) => {
+            console.log('🔍 SYSTEM MESSAGE RECEIVED:', data, 'at', new Date().toISOString());
             if (data.data && data.data.type === 'welcome') {
-                if (data.data.id && data.data.alias) {
-                    setCurrentUser({ id: data.data.id, alias: data.data.alias });
+                if (data.data.id) {
+                    // Set current user with the socket ID, use alias if available, otherwise use a default
+                    const userAlias = data.data.alias || `User-${data.data.id.substring(0, 8)}`;
+                    const user = { id: data.data.id, alias: userAlias };
+                    console.log('✅ SETTING CURRENT USER:', user);
+                    setCurrentUser(user);
+                } else {
+                    console.log('❌ No ID in welcome message, available data:', Object.keys(data.data || {}));
                 }
+            } else {
+                console.log('📨 Other system message:', data.data?.type);
             }
             const message: WebSocketMessage = {
                 ...data,
@@ -471,7 +506,7 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
                 }, 3000);
             }
         });
-
+        ws.connect();
         return () => {
             ws.disconnect();
         };
@@ -603,6 +638,7 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         sendTyping,
         sendPing,
         requestUserList,
-        clearMessages
+        clearMessages,
+        wsRef
     };
 }

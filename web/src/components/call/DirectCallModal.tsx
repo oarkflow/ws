@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Phone, PhoneOff, User } from 'lucide-react';
+import { getAudioToneManager } from '../../utils/audioTones';
 
 interface DirectCallModalProps {
     isOpen: boolean;
@@ -16,6 +17,25 @@ const DirectCallModal: React.FC<DirectCallModalProps> = ({
     onAccept,
     onReject
 }) => {
+    const toneManager = getAudioToneManager();
+
+    useEffect(() => {
+        if (isOpen) {
+            if (type === 'incoming') {
+                // Play ringtone for incoming calls
+                toneManager.playRingtone();
+            } else {
+                // Play calling tone for outgoing calls
+                toneManager.playCallingTone();
+            }
+        }
+
+        return () => {
+            // Stop audio when modal closes
+            toneManager.stopAllTones();
+        };
+    }, [isOpen, type, toneManager]);
+
     if (!isOpen) return null;
 
     return (
@@ -66,6 +86,18 @@ const DirectCallModal: React.FC<DirectCallModalProps> = ({
                         </div>
                     </div>
                 )}
+
+                {/* Animation for incoming call */}
+                {type === 'incoming' && (
+                    <div className="mt-8 flex justify-center">
+                        <div className="flex space-x-2">
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0ms' }}></div>
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
+                            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
+                        </div>
+                    </div>
+                )}
+
             </div>
         </div>
     );

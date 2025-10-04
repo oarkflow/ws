@@ -43,6 +43,27 @@ func main() {
 	// Set up event handlers
 	hub.OnConnect(func(socket *ws.Socket) {
 		log.Printf("Client connected: %s", socket.ID)
+
+		// Send welcome message with user ID
+		welcomeMsg := ws.Message{
+			T: ws.MsgSystem,
+			Data: map[string]any{
+				"message": "Connected to WebSocket server",
+				"id":      socket.ID,
+				"type":    "welcome",
+			},
+		}
+		socket.SendMessage(welcomeMsg)
+
+		// Broadcast updated user list to all clients
+		userList := hub.GetUserList()
+		userListMsg := ws.Message{
+			T: ws.MsgUserList,
+			Data: map[string]any{
+				"users": userList,
+			},
+		}
+		hub.BroadcastMessage(userListMsg)
 	})
 
 	hub.OnMessage(func(socket *ws.Socket) {

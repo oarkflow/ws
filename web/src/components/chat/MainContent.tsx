@@ -28,6 +28,7 @@ interface MainContentProps {
     users: User[];
     subscriptions: string[];
     isTyping: boolean;
+    currentUserId?: string;
     onToggleSidebar: () => void;
     onMessageTypeChange: (type: 'broadcast' | 'direct' | 'topic') => void;
     onRecipientChange: (recipient: string) => void;
@@ -49,6 +50,7 @@ const MainContent: React.FC<MainContentProps> = ({
     users,
     subscriptions,
     isTyping,
+    currentUserId,
     onToggleSidebar,
     onMessageTypeChange,
     onRecipientChange,
@@ -221,7 +223,14 @@ const MainContent: React.FC<MainContentProps> = ({
                         >
                             <Menu className="w-6 h-6" />
                         </button>
-                        <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Dashboard</h2>
+                        <div className="flex items-center space-x-3">
+                            <h2 className="text-lg sm:text-xl font-semibold text-slate-800">Dashboard</h2>
+                            {currentUserId && currentUserId !== 'connecting...' && (
+                                <div className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-lg">
+                                    ID: {currentUserId}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <div className="flex items-center space-x-3 sm:space-x-4">

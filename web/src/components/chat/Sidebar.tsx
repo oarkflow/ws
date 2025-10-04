@@ -155,6 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="space-y-2 max-h-80 overflow-y-auto">
                     {users.map((user) => {
                         const isCurrentUser = currentUserId && user.id === currentUserId;
+                        console.log('User:', user, 'Current User ID:', currentUserId, 'Is Current:', isCurrentUser);
                         return (
                             <div
                                 key={user.id}
@@ -165,9 +166,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     }`}
                             >
                                 <span className="truncate font-medium text-slate-800">
-                                    {user.alias}
+                                    {user.alias || user.id}
                                     {isCurrentUser && (
-                                        <span className="ml-2 text-xs font-normal text-blue-600">(Me)</span>
+                                        <span className="ml-2 text-xs font-normal text-blue-600">(ME)</span>
                                     )}
                                 </span>
                                 <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />

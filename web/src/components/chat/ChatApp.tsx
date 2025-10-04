@@ -49,30 +49,114 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
         sendTyping,
         sendPing,
         requestUserList,
-        clearMessages
+        clearMessages,
+        wsRef
     } = useWebSocket('ws://localhost:8080/ws', token);
 
-    // Remove auto-connect - manage connections manually only
 
     // Show toast notifications for connection state changes
     useEffect(() => {
         if (isConnected) {
-            showToast('Connected to WebSocket server', 'success');
             requestUserList();
-        } else {
-            showToast('Disconnected from server', 'warning');
         }
     }, [isConnected]);
 
     // Update current user alias when it changes
     useEffect(() => {
+        console.log('🔄 CHATAPP CURRENT USER CHANGED:', currentUser);
+        console.log('🔄 CURRENT USER ID:', currentUser?.id);
         if (currentUser) {
             setCurrentUserAlias(currentUser.alias);
+            console.log('✅ SET ALIAS TO:', currentUser.alias);
+        } else {
+            console.log('❌ CURRENT USER IS NULL');
         }
     }, [currentUser]);
 
     // Show toast for system events and handle call invitations
     useEffect(() => {
+        const ws = wsRef.current;
+        if (!ws) return;
+        ws.on("direct", (lastMessage: any) => {
+            try {
+                // Handle nested message structure from WebSocket
+                let messageData = lastMessage.data;
+
+                // If data contains a message field (nested structure), parse it
+                if (messageData && typeof messageData === 'object' && messageData.message) {
+                    messageData = typeof messageData.message === 'string' ? JSON.parse(messageData.message) : messageData.message;
+                } else if (typeof messageData === 'string') {
+                    messageData = JSON.parse(messageData);
+                }
+
+                console.log('🔍 Checking message data:', messageData);
+
+                if (messageData?.type === 'call_invitation') {
+                    console.log('🔴 INCOMING CALL DETECTED:', messageData, currentUser);
+                    // Check if this call is for the current user
+                    const isForCurrentUser = messageData.recipientId === currentUser?.id ||
+                        (!messageData.recipientId && messageData.callerId !== currentUser?.id);
+
+                    if (isForCurrentUser) {
+                        // Incoming call - show dialog (don't add to messages)
+                        console.log('🔴 INCOMING CALL DETECTED:', messageData);
+                        console.log('Current user ID:', currentUser?.id);
+                        console.log('Recipient ID:', messageData.recipientId);
+                        console.log('Caller ID:', messageData.callerId);
+                        setIncomingCall({
+                            id: messageData.roomId,
+                            callerName: messageData.callerName || 'Unknown Caller',
+                            callerId: messageData.callerId,
+                            type: messageData.callType
+                        });
+                        showToast(`📞 Incoming ${messageData.callType} call from ${messageData.callerName || 'Unknown'}`, 'info');
+                        return; // Don't add to regular messages
+                    }
+                } else if (messageData && messageData.type === 'call_accepted' && outgoingCall) {
+                    // Call was accepted, start the call (don't add to messages)
+                    console.log('Call accepted by recipient:', messageData);
+                    setOutgoingCall(null);
+                    setCurrentCall({
+                        roomId: messageData.roomId,
+                        type: messageData.callType,
+                        participants: [currentUser?.id || '', messageData.accepterId]
+                    });
+                    showToast('Call accepted!', 'success');
+                    return; // Don't add to regular messages
+                } else if (messageData && messageData.type === 'call_rejected' && outgoingCall) {
+                    // Call was rejected (don't add to messages)
+                    setOutgoingCall(null);
+                    showToast('Call was rejected', 'info');
+                    return; // Don't add to regular messages
+                } else if (messageData && messageData.type === 'call_cancelled' && incomingCall) {
+                    // Call was cancelled (don't add to messages)
+                    setIncomingCall(null);
+                    showToast('Call was cancelled', 'info');
+                    return; // Don't add to regular messages
+                }
+            } catch (e) {
+                console.log('Error parsing message data:', e);
+                // Not a JSON message or check if it's a plain text call invitation
+                if (typeof lastMessage.data === 'string' && lastMessage.data.includes('call_invitation')) {
+                    try {
+                        const data = JSON.parse(lastMessage.data);
+                        if (data.type === 'call_invitation' && data.callerId !== currentUser?.id) {
+                            console.log('Incoming call detected from plain text:', data);
+                            setIncomingCall({
+                                id: data.roomId,
+                                callerName: data.callerName || 'Unknown Caller',
+                                callerId: data.callerId,
+                                type: data.callType
+                            });
+                            showToast(`Incoming ${data.callType} call from ${data.callerName || 'Unknown'}`, 'info');
+                            return; // Don't add to regular messages
+                        }
+                    } catch (parseError) {
+                        console.log('Failed to parse call invitation:', parseError);
+                    }
+                }
+            }
+        })
         // Check for system messages
         const lastMessage = messages[messages.length - 1];
         if (lastMessage && lastMessage.event === 'system') {
@@ -84,63 +168,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
                 showToast(`User changed name to ${lastMessage.data.newAlias}`, 'info');
             }
         }
-
-        // Handle call invitations and responses
-        if (lastMessage && lastMessage.event === 'direct') {
-            try {
-                const data = typeof lastMessage.data === 'string' ? JSON.parse(lastMessage.data) : lastMessage.data;
-
-                if (data.type === 'call_invitation' && data.callerId !== currentUser?.id) {
-                    // Incoming call - show dialog
-                    console.log('Incoming call detected:', data);
-                    setIncomingCall({
-                        id: data.roomId,
-                        callerName: data.callerName,
-                        callerId: data.callerId,
-                        type: data.callType
-                    });
-                    showToast(`Incoming ${data.callType} call from ${data.callerName}`, 'info');
-                } else if (data.type === 'call_accepted' && outgoingCall) {
-                    // Call was accepted, start the call
-                    console.log('Call accepted by recipient:', data);
-                    setOutgoingCall(null);
-                    setCurrentCall({
-                        roomId: data.roomId,
-                        type: data.callType,
-                        participants: [currentUser?.id || '', data.accepterId]
-                    });
-                    showToast('Call accepted!', 'success');
-                } else if (data.type === 'call_rejected' && outgoingCall) {
-                    // Call was rejected
-                    setOutgoingCall(null);
-                    showToast('Call was rejected', 'info');
-                } else if (data.type === 'call_cancelled' && incomingCall) {
-                    // Call was cancelled
-                    setIncomingCall(null);
-                    showToast('Call was cancelled', 'info');
-                }
-            } catch (e) {
-                // Not a JSON message, check if it's a plain text call invitation
-                if (typeof lastMessage.data === 'string' && lastMessage.data.includes('call_invitation')) {
-                    try {
-                        const data = JSON.parse(lastMessage.data);
-                        if (data.type === 'call_invitation' && data.callerId !== currentUser?.id) {
-                            console.log('Incoming call detected from plain text:', data);
-                            setIncomingCall({
-                                id: data.roomId,
-                                callerName: data.callerName,
-                                callerId: data.callerId,
-                                type: data.callType
-                            });
-                            showToast(`Incoming ${data.callType} call from ${data.callerName}`, 'info');
-                        }
-                    } catch (parseError) {
-                        console.log('Failed to parse call invitation:', parseError);
-                    }
-                }
-            }
-        }
-    }, [messages, currentUser, outgoingCall, incomingCall]);
+    }, [messages, currentUser, outgoingCall, incomingCall, wsRef]);
 
     // Cleanup on component unmount
     useEffect(() => {
@@ -203,7 +231,10 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
     const handleStartCall = (type: 'audio' | 'video', recipientId: string) => {
         // Generate a unique room ID for the call
         const roomId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Immediately show outgoing call dialog
         setOutgoingCall({ recipientId, type });
+        console.log('📞 OUTGOING CALL DIALOG SHOWN for:', type, 'call to:', recipientId);
 
         // Send call invitation to recipient
         const callData = {
@@ -313,7 +344,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
                     users={users}
                     subscriptions={subscriptions}
                     currentUserAlias={currentUserAlias}
-                    currentUserId={currentUser?.id}
+                    currentUserId={currentUser?.id || 'disconnected'}
                     onConnect={handleConnect}
                     onDisconnect={handleDisconnect}
                     onSetAlias={handleSetAlias}
@@ -336,6 +367,7 @@ const ChatApp: React.FC<ChatAppProps> = ({ user, token }) => {
                     users={users}
                     subscriptions={subscriptions}
                     isTyping={isTyping}
+                    currentUserId={currentUser?.id || 'connecting...'}
                     onToggleSidebar={toggleSidebar}
                     onMessageTypeChange={setMessageType}
                     onRecipientChange={setSelectedRecipient}
