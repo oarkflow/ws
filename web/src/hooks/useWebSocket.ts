@@ -293,28 +293,73 @@ class WebSocketConnection {
         }
     }
 
+    private getMimeType(filename: string): string {
+        const ext = filename.split('.').pop()?.toLowerCase() || '';
+        const mimeTypes: { [key: string]: string } = {
+            // Images
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'bmp': 'image/bmp',
+            'svg': 'image/svg+xml',
+            'webp': 'image/webp',
+            // Videos
+            'mp4': 'video/mp4',
+            'webm': 'video/webm',
+            'ogg': 'video/ogg',
+            'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo',
+            // Audio
+            'mp3': 'audio/mpeg',
+            'wav': 'audio/wav',
+            'aac': 'audio/aac',
+            'm4a': 'audio/mp4',
+            // Documents
+            'pdf': 'application/pdf',
+            'doc': 'application/msword',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'txt': 'text/plain',
+            'rtf': 'application/rtf',
+            // Archives
+            'zip': 'application/zip',
+            'rar': 'application/x-rar-compressed',
+            '7z': 'application/x-7z-compressed',
+            'tar': 'application/x-tar',
+            'gz': 'application/gzip'
+        };
+        return mimeTypes[ext] || 'application/octet-stream';
+    }
+
     private handleFileReceived(data: ArrayBuffer) {
         if (this.lastFileMetadata) {
             const metadata = this.lastFileMetadata;
-            const blob = new Blob([data]);
+            const filename = metadata.data?.filename || metadata.filename || '';
+            const mimeType = this.getMimeType(filename);
+            console.log('📦 Received file:', filename, 'MIME type:', mimeType, 'Size:', data.byteLength);
+            const blob = new Blob([data], { type: mimeType });
             const url = URL.createObjectURL(blob);
+            console.log('🔗 Created blob URL:', url, 'Blob type:', blob.type);
 
             // Store the download URL
-            const fileId = `${metadata.filename}_${Date.now()}`;
+            const fileId = `${filename}_${Date.now()}`;
             this.fileDownloadUrls.set(fileId, url);
 
             // Emit file received event with download URL
-            this.emit('file_received', {
+            const fileReceivedData = {
                 ...metadata,
                 downloadUrl: url,
                 fileId: fileId
-            });
+            };
+            console.log('📤 Emitting file_received:', fileReceivedData);
+            this.emit('file_received', fileReceivedData);
 
             // Clear the stored metadata
             this.lastFileMetadata = null;
         } else {
             // Fallback if no metadata
-            const blob = new Blob([data]);
+            console.warn('⚠️ No metadata for received file');
+            const blob = new Blob([data], { type: 'application/octet-stream' });
             const url = URL.createObjectURL(blob);
             const fileId = `received_file_${Date.now()}`;
             this.fileDownloadUrls.set(fileId, url);
@@ -494,15 +539,18 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         });
 
         ws.on('file', (data: any) => {
+            console.log('📨 Received file metadata:', data);
             ws.lastFileMetadata = data;
         });
 
         ws.on('file_received', (data: any) => {
+            console.log('✅ file_received event:', data);
             const message: WebSocketMessage = {
                 ...data,
                 event: 'file',
                 timestamp: new Date()
             };
+            console.log('💬 Adding file message to chat:', message);
             setMessages(prev => [...prev, message]);
         });
 

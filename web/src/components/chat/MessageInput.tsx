@@ -85,7 +85,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
             {selectedFile && (
                 <div className="mb-3 flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
                     <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <Paperclip className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                        <Paperclip className="w-8 h-8 text-slate-500 flex-shrink-0" />
                         <span className="text-sm text-slate-700 truncate">
                             {selectedFile.name}
                         </span>
@@ -116,10 +116,10 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <button
                     onClick={handleAttachClick}
                     disabled={!isConnected}
-                    className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="p-3 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                     title="Attach file"
                 >
-                    <Paperclip className="w-5 h-5" />
+                    <Paperclip className="w-6 h-6" />
                 </button>
 
                 {/* Text input */}
@@ -142,7 +142,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                     className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                     title="Send message"
                 >
-                    <Send className="w-5 h-5" />
+                    <Send className="w-6 h-6" />
                 </button>
             </div>
 

@@ -145,6 +145,18 @@ const MessageThread: React.FC<MessageThreadProps> = ({
                                                 }`}
                                         >
                                             {/* Image Preview */}
+                                            {(() => {
+                                                const fileType = getFileType(message.fileName || '');
+                                                const hasUrl = !!message.fileUrl;
+                                                console.log('🎨 Rendering file:', {
+                                                    fileName: message.fileName,
+                                                    fileType,
+                                                    hasUrl,
+                                                    fileUrl: message.fileUrl,
+                                                    shouldShowImage: hasUrl && fileType === 'image'
+                                                });
+                                                return null;
+                                            })()}
                                             {message.fileUrl && getFileType(message.fileName || '') === 'image' && (
                                                 <div
                                                     className="cursor-pointer hover:opacity-90 transition-opacity"

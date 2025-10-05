@@ -247,7 +247,6 @@ function initializeWebSocket() {
     });
 
     wscon.on('system', (data) => {
-        console.log('System message received:', data);
         if (data.data && data.data.type === 'welcome') {
             // Handle welcome message
             if (data.data.id && wscon) {

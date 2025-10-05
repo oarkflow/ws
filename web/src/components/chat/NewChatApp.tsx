@@ -287,6 +287,15 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
             fileSize: lastMessage.data?.size || lastMessage.size
         };
 
+        if (lastMessage.event === 'file') {
+            console.log('🖼️ Processing file message:', {
+                lastMessage,
+                threadMessage,
+                fileUrl: threadMessage.fileUrl,
+                fileName: threadMessage.fileName
+            });
+        }
+
         addMessage(threadId, threadMessage);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [messages]);
