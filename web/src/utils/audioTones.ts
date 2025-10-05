@@ -1,147 +1,235 @@
 class AudioToneManager {
     private audioContext: AudioContext | null = null;
-    private oscillators: OscillatorNode[] = [];
-    private gainNode: GainNode | null = null;
+    private masterGain: GainNode | null = null;
+    private activeNodes: Set<AudioNode> = new Set();
     private toneIntervals: number[] = [];
+
+    // Musical note frequencies (A4 = 440Hz reference)
+    private readonly notes = {
+        C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23,
+        G4: 392.00, A4: 440.00, B4: 493.88,
+        C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46,
+        G5: 783.99, A5: 880.00, B5: 987.77
+    };
 
     constructor() {
         if (typeof window !== 'undefined' && (window.AudioContext || (window as any).webkitAudioContext)) {
             this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-            this.gainNode = this.audioContext.createGain();
-            this.gainNode.connect(this.audioContext.destination);
-            this.gainNode.gain.value = 0.3; // Default volume
+            this.masterGain = this.audioContext.createGain();
+            this.masterGain.connect(this.audioContext.destination);
+            this.masterGain.gain.value = 0.25;
         }
     }
 
     private ensureAudioContext() {
-        if (this.audioContext && this.audioContext.state === 'suspended') {
+        if (this.audioContext?.state === 'suspended') {
             this.audioContext.resume();
         }
     }
 
-    private playTone(frequency: number, duration: number) {
-        if (!this.audioContext || !this.gainNode) return;
+    private playMelodiousTone(
+        frequency: number,
+        duration: number,
+        waveType: OscillatorType = 'sine',
+        fadeIn: number = 0.05,
+        fadeOut: number = 0.05
+    ) {
+        if (!this.audioContext || !this.masterGain) return;
 
         this.ensureAudioContext();
 
         const oscillator = this.audioContext.createOscillator();
-        oscillator.type = 'sine';
+        const gainNode = this.audioContext.createGain();
+
+        oscillator.type = waveType;
         oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-        oscillator.connect(this.gainNode);
 
-        oscillator.start();
-        oscillator.stop(this.audioContext.currentTime + duration / 1000);
+        oscillator.connect(gainNode);
+        gainNode.connect(this.masterGain);
 
-        this.oscillators.push(oscillator);
+        const now = this.audioContext.currentTime;
+        const durationSec = duration / 1000;
 
-        // Clean up after the tone finishes
+        // Smooth fade in/out envelope
+        gainNode.gain.setValueAtTime(0, now);
+        gainNode.gain.linearRampToValueAtTime(0.6, now + fadeIn);
+        gainNode.gain.linearRampToValueAtTime(0.6, now + durationSec - fadeOut);
+        gainNode.gain.linearRampToValueAtTime(0, now + durationSec);
+
+        oscillator.start(now);
+        oscillator.stop(now + durationSec);
+
+        this.activeNodes.add(oscillator);
+        this.activeNodes.add(gainNode);
+
         setTimeout(() => {
-            const index = this.oscillators.indexOf(oscillator);
-            if (index > -1) {
-                this.oscillators.splice(index, 1);
-            }
+            this.activeNodes.delete(oscillator);
+            this.activeNodes.delete(gainNode);
         }, duration);
     }
 
+    private playChord(frequencies: number[], duration: number, waveType: OscillatorType = 'sine') {
+        frequencies.forEach(freq => {
+            this.playMelodiousTone(freq, duration, waveType);
+        });
+    }
+
     /**
-     * Play calling tone (repeated 800Hz beeps every 2s)
+     * Play gentle calling melody (ascending major arpeggio)
      */
     playCallingTone() {
         this.stopAllTones();
 
-        const playBeep = () => {
-            this.playTone(800, 400); // 800Hz for 400ms
+        const melody = [this.notes.C5, this.notes.E5, this.notes.G5, this.notes.C5];
+        let index = 0;
+
+        const playNote = () => {
+            this.playMelodiousTone(melody[index % melody.length], 400, 'sine', 0.03, 0.1);
+            index++;
         };
 
-        // Play immediately
-        playBeep();
-
-        // Repeat every 2 seconds
-        const interval = setInterval(playBeep, 2000);
+        playNote();
+        const interval = setInterval(playNote, 600);
         this.toneIntervals.push(interval);
     }
 
     /**
-     * Play ringtone (alternating 800Hz/1200Hz)
+     * Play soothing ringtone (peaceful chord progression)
      */
     playRingtone() {
         this.stopAllTones();
 
-        let toggle = true;
-        const playRing = () => {
-            this.playTone(toggle ? 800 : 1200, 400);
-            toggle = !toggle;
+        const chordProgression = [
+            [this.notes.C4, this.notes.E4, this.notes.G4],  // C major
+            [this.notes.A4, this.notes.C5, this.notes.E5],  // A minor
+            [this.notes.F4, this.notes.A4, this.notes.C5],  // F major
+            [this.notes.G4, this.notes.B4, this.notes.D5]   // G major
+        ];
+
+        let chordIndex = 0;
+
+        const playNextChord = () => {
+            this.playChord(chordProgression[chordIndex % chordProgression.length], 800, 'sine');
+            chordIndex++;
         };
 
-        // Play immediately
-        playRing();
-
-        // Repeat every 800ms (400ms tone + 400ms pause)
-        const interval = setInterval(playRing, 800);
+        playNextChord();
+        const interval = setInterval(playNextChord, 1200);
         this.toneIntervals.push(interval);
     }
 
     /**
-     * Play end call tone (descending 800/600/400Hz)
+     * Play gentle end call melody (descending peaceful notes)
      */
     playEndCallTone() {
         this.stopAllTones();
 
-        setTimeout(() => this.playTone(800, 200), 0);
-        setTimeout(() => this.playTone(600, 200), 200);
-        setTimeout(() => this.playTone(400, 200), 400);
+        const melody = [
+            { freq: this.notes.G5, delay: 0 },
+            { freq: this.notes.E5, delay: 200 },
+            { freq: this.notes.C5, delay: 400 },
+            { freq: this.notes.G4, delay: 600 }
+        ];
+
+        melody.forEach(({ freq, delay }) => {
+            setTimeout(() => {
+                this.playMelodiousTone(freq, 300, 'sine', 0.02, 0.15);
+            }, delay);
+        });
     }
 
     /**
-     * Play a success notification beep
+     * Play uplifting success melody
      */
     playSuccessTone() {
-        this.playTone(880, 150);
-        setTimeout(() => this.playTone(1108.73, 150), 150);
+        const melody = [
+            { freq: this.notes.C5, delay: 0 },
+            { freq: this.notes.E5, delay: 100 },
+            { freq: this.notes.G5, delay: 200 },
+            { freq: this.notes.C5, delay: 300 }
+        ];
+
+        melody.forEach(({ freq, delay }) => {
+            setTimeout(() => {
+                this.playMelodiousTone(freq, 200, 'triangle', 0.02, 0.08);
+            }, delay);
+        });
     }
 
     /**
-     * Play an error notification beep
+     * Play gentle error notification
      */
     playErrorTone() {
-        this.playTone(440, 150);
-        setTimeout(() => this.playTone(349.23, 150), 150);
+        const melody = [
+            { freq: this.notes.E5, delay: 0 },
+            { freq: this.notes.D5, delay: 150 },
+            { freq: this.notes.C5, delay: 300 }
+        ];
+
+        melody.forEach(({ freq, delay }) => {
+            setTimeout(() => {
+                this.playMelodiousTone(freq, 250, 'sine', 0.03, 0.12);
+            }, delay);
+        });
     }
 
     /**
-     * Stop all currently playing tones and intervals
+     * Play a calming notification chime
+     */
+    playNotificationChime() {
+        this.playChord([this.notes.C5, this.notes.E5, this.notes.G5], 600, 'triangle');
+    }
+
+    /**
+     * Play ambient meditation tone (sustained harmonious sound)
+     */
+    playMeditationTone() {
+        this.stopAllTones();
+
+        const baseFreq = this.notes.C4;
+        const harmonics = [baseFreq, baseFreq * 1.5, baseFreq * 2, baseFreq * 3];
+
+        harmonics.forEach((freq, i) => {
+            this.playMelodiousTone(freq, 3000, 'sine', 0.5, 0.5);
+        });
+    }
+
+    /**
+     * Stop all currently playing tones
      */
     stopAllTones() {
-        // Stop all oscillators
-        this.oscillators.forEach(osc => {
+        this.activeNodes.forEach(node => {
             try {
-                osc.stop();
-                osc.disconnect();
+                if (node instanceof OscillatorNode) {
+                    node.stop();
+                }
+                node.disconnect();
             } catch (e) {
-                // Oscillator may already be stopped
+                // Node may already be stopped
             }
         });
-        this.oscillators = [];
+        this.activeNodes.clear();
 
-        // Clear all intervals
         this.toneIntervals.forEach(interval => clearInterval(interval));
         this.toneIntervals = [];
     }
 
     /**
-     * Set the volume for all tones (0.0 to 1.0)
+     * Set master volume (0.0 to 1.0)
      */
     setVolume(volume: number) {
-        if (this.gainNode) {
-            this.gainNode.gain.value = Math.max(0, Math.min(1, volume));
+        if (this.masterGain) {
+            const clampedVolume = Math.max(0, Math.min(1, volume));
+            const now = this.audioContext?.currentTime || 0;
+            this.masterGain.gain.setTargetAtTime(clampedVolume, now, 0.1);
         }
     }
 
     /**
-     * Resume audio context (required for user interaction)
+     * Resume audio context (required after user interaction)
      */
     resume() {
-        if (this.audioContext && this.audioContext.state === 'suspended') {
+        if (this.audioContext?.state === 'suspended') {
             this.audioContext.resume();
         }
     }
@@ -158,20 +246,20 @@ class AudioToneManager {
     }
 }
 
-// Create a singleton instance
-let audioToneManager: AudioToneManager | null = null;
+// Singleton instance
+let audioManager: AudioToneManager | null = null;
 
 export const getAudioToneManager = (): AudioToneManager => {
-    if (!audioToneManager) {
-        audioToneManager = new AudioToneManager();
+    if (!audioManager) {
+        audioManager = new AudioToneManager();
     }
-    return audioToneManager;
+    return audioManager;
 };
 
 export const destroyAudioToneManager = () => {
-    if (audioToneManager) {
-        audioToneManager.destroy();
-        audioToneManager = null;
+    if (audioManager) {
+        audioManager.destroy();
+        audioManager = null;
     }
 };
 
