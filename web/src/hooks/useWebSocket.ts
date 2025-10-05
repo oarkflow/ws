@@ -481,7 +481,7 @@ export function useWebSocket(url: string, token?: string): WebSocketHook {
         ws.on('broadcast', (data: any) => {
             const message: WebSocketMessage = {
                 ...data,
-                event: 'broadcast',
+                event: data.topic ? 'topic' : 'broadcast',
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, message]);

@@ -193,6 +193,32 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
         // Mark as processed
         processedMessageIds.current.add(messageId);
 
+        // Handle system messages
+        if (lastMessage.event === 'system') {
+            const systemData = lastMessage.data;
+            if (systemData && typeof systemData === 'object' && systemData.type === 'topic_list_update' && systemData.topics) {
+                // Update available topics - create threads for topics that don't exist yet
+                const topics = systemData.topics as string[];
+                topics.forEach(topic => {
+                    if (topic !== 'general') { // general is already created by default
+                        const threadId = `topic-${topic}`;
+                        const existingThread = threads.find(t => t.id === threadId);
+                        if (!existingThread) {
+                            const newThread: Thread = {
+                                id: threadId,
+                                type: 'topic',
+                                name: topic,
+                                topicName: topic,
+                                unreadCount: 0
+                            };
+                            addThread(newThread);
+                        }
+                    }
+                });
+            }
+            return; // Don't process system messages further
+        }
+
         // Determine thread ID based on message type
         let threadId = 'broadcast';
         let threadType: 'broadcast' | 'direct' | 'topic' = 'broadcast';
@@ -234,8 +260,8 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
             threadType = 'direct';
             threadName = otherUserName;
             recipientId = otherUserId;
-        } else if (lastMessage.event === 'topic' || lastMessage.event === 'published' || (lastMessage.event === 'file' && lastMessage.topic)) {
-            // Topic/Channel message (including file messages in topics)
+        } else if (lastMessage.event === 'topic' || lastMessage.event === 'published' || (lastMessage.event === 'file' && lastMessage.topic) || (lastMessage.event === 'broadcast' && lastMessage.topic)) {
+            // Topic/Channel message (including broadcast messages with topics and file messages in topics)
             threadId = `topic-${lastMessage.topic}`;
             threadType = 'topic';
             threadName = lastMessage.topic || 'Unknown Channel';
@@ -324,6 +350,11 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
 
     const handleThreadSelect = (thread: Thread) => {
         setActiveThread(thread);
+
+        // Subscribe to topic threads when selected
+        if (thread.type === 'topic' && thread.topicName) {
+            subscribe(thread.topicName);
+        }
     };
 
     const handleCreateChannel = () => {

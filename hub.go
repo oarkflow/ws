@@ -187,10 +187,10 @@ func (h *Hub) BroadcastMessageExcept(msg Message, excludeSocket *Socket) {
 		sentCount := 0
 		for _, socket := range h.sockets {
 			if !socket.IsBanned() {
-				// If this is a topic message, only send to subscribers (including sender if subscribed)
+				// If this is a topic message, only send to subscribers (excluding sender)
 				if msg.Topic != "" && msg.Topic != "general" {
-					if !socket.conn.IsSubscribed(msg.Topic) {
-						continue // Skip this client if not subscribed to the topic
+					if socket == excludeSocket || !socket.conn.IsSubscribed(msg.Topic) {
+						continue // Skip this client if not subscribed to the topic or is the sender
 					}
 				} else if socket == excludeSocket {
 					// For non-topic messages, exclude the sender

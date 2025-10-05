@@ -487,6 +487,7 @@ func (s *Server) handleUnifiedMessage(socket *Socket, msg Message) {
 			T:     MsgBroadcast,
 			Topic: msg.Topic,
 			Data:  msg.Data,
+			From:  socket.GetAlias(),
 		}
 		s.hub.BroadcastMessageExcept(broadcastMsg, socket)
 
