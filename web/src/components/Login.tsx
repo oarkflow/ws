@@ -56,15 +56,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
             <div className="max-w-md w-full">
                 {/* Header */}
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
                         <MessageCircle className="w-8 h-8 text-white" />
                     </div>
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">WebSocket Chat</h1>
-                    <p className="text-gray-600">Choose a demo user to continue</p>
+                    <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">WebSocket Chat</h1>
+                    <p className="text-gray-600 dark:text-gray-400">Choose a demo user to continue</p>
                 </div>
 
                 {/* User Selection */}
@@ -74,20 +74,20 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                             key={user.id}
                             onClick={() => handleUserSelect(user)}
                             className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${selectedUser?.id === user.id
-                                ? 'border-blue-500 bg-blue-50'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
                                 }`}
                         >
                             <div className="flex items-center space-x-4">
                                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-semibold ${selectedUser?.id === user.id
                                     ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-200 text-gray-700'
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                                     }`}>
                                     {user.avatar}
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="font-semibold text-gray-900">{user.name}</h3>
-                                    <p className="text-sm text-gray-600">{user.email}</p>
+                                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{user.name}</h3>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
                                 </div>
                                 <div className={`w-4 h-4 rounded-full border-2 ${selectedUser?.id === user.id
                                     ? 'border-blue-500 bg-blue-500'
@@ -116,7 +116,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
                 {/* Demo Info */}
                 <div className="mt-6 text-center">
-                    <div className="inline-flex items-center space-x-2 text-sm text-gray-500 bg-white px-4 py-2 rounded-lg">
+                    <div className="inline-flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 px-4 py-2 rounded-lg">
                         <Users className="w-4 h-4" />
                         <span>Demo Mode - 2 Users Available</span>
                     </div>

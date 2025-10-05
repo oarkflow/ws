@@ -17,8 +17,8 @@ const ThreadHeader: React.FC<ThreadHeaderProps> = ({
 }) => {
     if (!thread) {
         return (
-            <div className="h-16 bg-white border-b border-slate-200 flex items-center px-6">
-                <div className="text-slate-500">Select a conversation to start messaging</div>
+            <div className="h-16 bg-white dark:bg-gray-50 border-b border-gray-200 dark:border-gray-700 flex items-center px-6">
+                <div className="text-gray-500 dark:text-gray-400">Select a conversation to start messaging</div>
             </div>
         );
     }
@@ -26,9 +26,9 @@ const ThreadHeader: React.FC<ThreadHeaderProps> = ({
     const getThreadIcon = () => {
         switch (thread.type) {
             case 'broadcast':
-                return <MessageCircle className="w-5 h-5 text-slate-600" />;
+                return <MessageCircle className="w-5 h-5 text-gray-600 dark:text-gray-400" />;
             case 'topic':
-                return <Hash className="w-5 h-5 text-slate-600" />;
+                return <Hash className="w-5 h-5 text-gray-600 dark:text-gray-400" />;
             case 'direct':
                 return <div className="w-2 h-2 bg-green-400 rounded-full" />;
             default:
@@ -59,12 +59,12 @@ const ThreadHeader: React.FC<ThreadHeaderProps> = ({
     const showCallButtons = isConnected && (thread.type === 'direct' || thread.type === 'topic' || thread.type === 'broadcast');
 
     return (
-        <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+        <div className="h-16 bg-white dark:bg-gray-50 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6">
             <div className="flex items-center space-x-3">
                 {getThreadIcon()}
                 <div>
-                    <h2 className="text-lg font-semibold text-slate-900">{getThreadName()}</h2>
-                    <p className="text-xs text-slate-500">{getThreadDescription()}</p>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{getThreadName()}</h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{getThreadDescription()}</p>
                 </div>
             </div>
 
@@ -74,7 +74,7 @@ const ThreadHeader: React.FC<ThreadHeaderProps> = ({
                         <button
                             onClick={onStartAudioCall}
                             disabled={!isConnected}
-                            className="p-2 text-slate-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Start audio call"
                         >
                             <Phone className="w-5 h-5" />
@@ -82,18 +82,18 @@ const ThreadHeader: React.FC<ThreadHeaderProps> = ({
                         <button
                             onClick={onStartVideoCall}
                             disabled={!isConnected}
-                            className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Start video call"
                         >
                             <Video className="w-5 h-5" />
                         </button>
-                        <div className="w-px h-6 bg-slate-200 mx-2" />
+                        <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-2" />
                     </>
                 )}
 
                 {thread.type === 'topic' && (
                     <button
-                        className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                         title="Channel details"
                     >
                         <Users className="w-5 h-5" />
@@ -101,7 +101,7 @@ const ThreadHeader: React.FC<ThreadHeaderProps> = ({
                 )}
 
                 <button
-                    className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                     title="Thread details"
                 >
                     <Info className="w-5 h-5" />

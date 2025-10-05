@@ -192,23 +192,23 @@ const CallScreen: React.FC<CallScreenProps> = ({
     };
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white">
+        <div className="min-h-screen bg-slate-900 dark:bg-gray-900 text-white dark:text-gray-100">
             {/* Header */}
-            <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
+            <div className="bg-slate-800 dark:bg-gray-800 border-b border-slate-700 dark:border-gray-700 px-6 py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center space-x-2">
                             <div className={`w-3 h-3 rounded-full animate-pulse ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                            <span className="text-sm text-slate-300">Room: <span className="font-mono">{roomId}</span></span>
+                            <span className="text-sm text-slate-300 dark:text-gray-400">Room: <span className="font-mono">{roomId}</span></span>
                         </div>
                     </div>
                     <div className="flex items-center space-x-4">
-                        <div className="text-sm text-slate-300">
+                        <div className="text-sm text-slate-300 dark:text-gray-400">
                             {participants.length + 1} participant{participants.length !== 0 ? 's' : ''}
                         </div>
                         <button
                             onClick={toggleParticipants}
-                            className="p-2 text-slate-400 hover:text-white transition-colors"
+                            className="p-2 text-slate-400 dark:text-gray-500 hover:text-white dark:hover:text-gray-100 transition-colors"
                         >
                             <Settings className="w-5 h-5" />
                         </button>
@@ -221,12 +221,12 @@ const CallScreen: React.FC<CallScreenProps> = ({
                 {/* Remote Videos Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6 h-full">
                     {participants.length === 0 ? (
-                        <div className="bg-slate-700 rounded-lg flex items-center justify-center min-h-[200px]">
-                            <span className="text-slate-400">Waiting for participants...</span>
+                        <div className="bg-slate-700 dark:bg-gray-700 rounded-lg flex items-center justify-center min-h-[200px]">
+                            <span className="text-slate-400 dark:text-gray-500">Waiting for participants...</span>
                         </div>
                     ) : (
                         participants.map((participant) => (
-                            <div key={participant.id} className="bg-slate-700 rounded-lg overflow-hidden">
+                            <div key={participant.id} className="bg-slate-700 dark:bg-gray-700 rounded-lg overflow-hidden">
                                 {participant.stream ? (
                                     <video
                                         autoPlay
@@ -240,7 +240,7 @@ const CallScreen: React.FC<CallScreenProps> = ({
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
-                                        <span className="text-slate-400">Connecting...</span>
+                                        <span className="text-slate-400 dark:text-gray-500">Connecting...</span>
                                     </div>
                                 )}
                                 <div className="absolute bottom-2 left-2 text-xs text-white bg-black bg-opacity-50 px-2 py-1 rounded">

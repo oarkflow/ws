@@ -80,22 +80,22 @@ const MessageInput: React.FC<MessageInputProps> = ({
     };
 
     return (
-        <div className="bg-white border-t border-slate-200 p-4">
+        <div className="bg-white dark:bg-gray-50 border-t border-gray-200 dark:border-gray-700 p-4">
             {/* File Preview */}
             {selectedFile && (
-                <div className="mb-3 flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                <div className="mb-3 flex items-center justify-between bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
                     <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <Paperclip className="w-8 h-8 text-slate-500 flex-shrink-0" />
-                        <span className="text-sm text-slate-700 truncate">
+                        <Paperclip className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                        <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
                             {selectedFile.name}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
                             ({(selectedFile.size / 1024).toFixed(1)} KB)
                         </span>
                     </div>
                     <button
                         onClick={handleRemoveFile}
-                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition-colors"
+                        className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
                     >
                         <X className="w-4 h-4" />
                     </button>
@@ -116,7 +116,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                 <button
                     onClick={handleAttachClick}
                     disabled={!isConnected}
-                    className="p-3 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    className="p-3 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                     title="Attach file"
                 >
                     <Paperclip className="w-6 h-6" />
@@ -131,7 +131,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
                         onKeyPress={handleKeyPress}
                         placeholder={placeholder}
                         disabled={!isConnected}
-                        className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-50 disabled:cursor-not-allowed"
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed bg-white dark:bg-gray-50 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                     />
                 </div>
 

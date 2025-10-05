@@ -54,13 +54,13 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-slate-200">
-                    <h2 className="text-xl font-semibold text-slate-900">Create a channel</h2>
+                <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-gray-700">
+                    <h2 className="text-xl font-semibold text-slate-900 dark:text-gray-100">Create a channel</h2>
                     <button
                         onClick={handleClose}
-                        className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
+                        className="p-1 text-slate-400 dark:text-gray-500 hover:text-slate-600 dark:hover:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -69,12 +69,12 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 {/* Body */}
                 <form onSubmit={handleSubmit} className="p-6">
                     <div className="mb-4">
-                        <label htmlFor="channelName" className="block text-sm font-medium text-slate-700 mb-2">
+                        <label htmlFor="channelName" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-2">
                             Channel name
                         </label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Hash className="w-5 h-5 text-slate-400" />
+                                <Hash className="w-5 h-5 text-slate-400 dark:text-gray-500" />
                             </div>
                             <input
                                 type="text"
@@ -85,14 +85,14 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                                     setError('');
                                 }}
                                 placeholder="e.g. general, random, announcements"
-                                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full pl-10 pr-4 py-2 border border-slate-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-slate-900 dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
                                 autoFocus
                             />
                         </div>
                         {error && (
-                            <p className="mt-2 text-sm text-red-600">{error}</p>
+                            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>
                         )}
-                        <p className="mt-2 text-xs text-slate-500">
+                        <p className="mt-2 text-xs text-slate-500 dark:text-gray-400">
                             Channels are where conversations happen around a topic. Use a name that is easy to find and understand.
                         </p>
                     </div>
@@ -102,7 +102,7 @@ const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                            className="px-4 py-2 text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                         >
                             Cancel
                         </button>

@@ -40,7 +40,7 @@ const DirectCallModal: React.FC<DirectCallModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-            <div className="bg-slate-800 rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl">
+            <div className="bg-slate-800 dark:bg-gray-800 rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl">
                 {/* Avatar */}
                 <div className="flex justify-center mb-6">
                     <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center">
@@ -50,8 +50,8 @@ const DirectCallModal: React.FC<DirectCallModalProps> = ({
 
                 {/* Caller Info */}
                 <div className="text-center mb-8">
-                    <h2 className="text-2xl font-bold text-white mb-2">{callerName}</h2>
-                    <p className="text-slate-400">
+                    <h2 className="text-2xl font-bold text-white dark:text-gray-100 mb-2">{callerName}</h2>
+                    <p className="text-slate-400 dark:text-gray-400">
                         {type === 'incoming' ? 'Incoming call...' : 'Calling...'}
                     </p>
                 </div>

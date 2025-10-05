@@ -58,16 +58,16 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
     };
 
     return (
-        <div className="h-full w-64 bg-purple-900 text-white flex flex-col">
+        <div className="h-full w-64 bg-gray-800 dark:bg-gray-900 text-white flex flex-col border-r border-gray-200 dark:border-gray-700">
             {/* Workspace Header */}
-            <div className="p-4 border-b border-purple-800">
+            <div className="p-4 border-b border-gray-700 dark:border-gray-600">
                 <div className="flex items-center justify-between mb-3">
                     <h1 className="text-lg font-bold truncate">{workspaceName}</h1>
                     <div className="flex items-center space-x-1">
                         {isConnected ? (
                             <button
                                 onClick={onDisconnect}
-                                className="p-1 hover:bg-purple-800 rounded transition-colors"
+                                className="p-1 hover:bg-gray-700 dark:hover:bg-gray-800 rounded transition-colors"
                                 title="Disconnect"
                             >
                                 <Wifi className="w-4 h-4 text-green-400" />
@@ -75,7 +75,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                         ) : (
                             <button
                                 onClick={onConnect}
-                                className="p-1 hover:bg-purple-800 rounded transition-colors"
+                                className="p-1 hover:bg-gray-700 dark:hover:bg-gray-800 rounded transition-colors"
                                 title="Connect"
                             >
                                 <WifiOff className="w-4 h-4 text-red-400" />
@@ -83,7 +83,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                         )}
                     </div>
                 </div>
-                <div className="text-sm text-purple-300 truncate">
+                <div className="text-sm text-gray-400 dark:text-gray-500 truncate">
                     {currentUserAlias}
                 </div>
             </div>
@@ -95,7 +95,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                     <div className="px-2 py-2">
                         <button
                             onClick={() => onThreadSelect(broadcastThread)}
-                            className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-purple-800 transition-colors ${activeThread?.id === broadcastThread.id ? 'bg-purple-700' : ''
+                            className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === broadcastThread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
                                 }`}
                         >
                             <MessageCircle className="w-5 h-5 flex-shrink-0" />
@@ -111,7 +111,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
 
                 {/* Channels Section */}
                 <div className="px-2 py-2">
-                    <div className="w-full flex items-center space-x-2 px-2 py-1 text-sm font-semibold text-purple-300">
+                    <div className="w-full flex items-center space-x-2 px-2 py-1 text-sm font-semibold text-gray-400 dark:text-gray-500">
                         <button
                             onClick={() => setChannelsExpanded(!channelsExpanded)}
                             className="flex items-center space-x-2 flex-1 hover:text-white transition-colors"
@@ -125,7 +125,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                         </button>
                         <button
                             onClick={onCreateChannel}
-                            className="p-1 hover:bg-purple-800 hover:text-white rounded transition-colors"
+                            className="p-1 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white rounded transition-colors"
                             title="Create channel"
                         >
                             <Plus className="w-4 h-4" />
@@ -135,7 +135,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                     {channelsExpanded && (
                         <div className="mt-1 space-y-0.5">
                             {channelThreads.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-purple-400">
+                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
                                     No channels yet
                                 </div>
                             ) : (
@@ -143,10 +143,10 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                                     <button
                                         key={thread.id}
                                         onClick={() => onThreadSelect(thread)}
-                                        className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-purple-800 transition-colors ${activeThread?.id === thread.id ? 'bg-purple-700' : ''
+                                        className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === thread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
                                             }`}
                                     >
-                                        <Hash className="w-4 h-4 flex-shrink-0 text-purple-300" />
+                                        <Hash className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
                                         <span className="flex-1 text-left text-sm truncate">
                                             {thread.topicName || thread.name}
                                         </span>
@@ -166,7 +166,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                 <div className="px-2 py-2">
                     <button
                         onClick={() => setDirectMessagesExpanded(!directMessagesExpanded)}
-                        className="w-full flex items-center space-x-2 px-2 py-1 text-sm font-semibold text-purple-300 hover:text-white transition-colors"
+                        className="w-full flex items-center space-x-2 px-2 py-1 text-sm font-semibold text-gray-400 dark:text-gray-500 hover:text-white transition-colors"
                     >
                         {directMessagesExpanded ? (
                             <ChevronDown className="w-4 h-4" />
@@ -174,7 +174,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                             <ChevronRight className="w-4 h-4" />
                         )}
                         <span className="flex-1 text-left">Direct Messages</span>
-                        <span className="text-xs bg-purple-800 px-2 py-0.5 rounded-full">
+                        <span className="text-xs bg-gray-700 dark:bg-gray-800 px-2 py-0.5 rounded-full">
                             {users.filter(u => u.id !== currentUserId).length}
                         </span>
                     </button>
@@ -188,7 +188,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                                     <button
                                         key={thread.id}
                                         onClick={() => onThreadSelect(thread)}
-                                        className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-purple-800 transition-colors ${activeThread?.id === thread.id ? 'bg-purple-700' : ''
+                                        className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === thread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
                                             }`}
                                     >
                                         <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
@@ -207,7 +207,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                             {/* Available users without threads */}
                             {usersWithoutThread.length > 0 && (
                                 <>
-                                    <div className="px-3 py-2 text-xs text-purple-400 font-semibold">
+                                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 font-semibold">
                                         <Users className="w-3 h-3 inline mr-1" />
                                         Available Users
                                     </div>
@@ -215,7 +215,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                                         <button
                                             key={user.id}
                                             onClick={() => handleUserClick(user.id)}
-                                            className="w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-purple-800 transition-colors opacity-70 hover:opacity-100"
+                                            className="w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors opacity-70 hover:opacity-100"
                                         >
                                             <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
                                             <span className="flex-1 text-left text-sm truncate">
@@ -227,7 +227,7 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                             )}
 
                             {users.filter(u => u.id !== currentUserId).length === 0 && (
-                                <div className="px-3 py-2 text-sm text-purple-400">
+                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
                                     No users online
                                 </div>
                             )}
@@ -237,10 +237,10 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
             </div>
 
             {/* Connection Status Footer */}
-            <div className="p-3 border-t border-purple-800 text-xs">
+            <div className="p-3 border-t border-gray-700 dark:border-gray-600 text-xs">
                 <div className="flex items-center space-x-2">
                     <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-                    <span className="text-purple-300">
+                    <span className="text-gray-400 dark:text-gray-500">
                         {isConnected ? 'Connected' : 'Disconnected'}
                     </span>
                 </div>

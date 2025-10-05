@@ -5,6 +5,8 @@ import ChatApp from './components/chat/NewChatApp';
 import CallApp from './components/call/CallApp';
 import Login from './components/Login';
 import { useWebSocket } from './hooks/useWebSocket';
+import { ThemeProvider } from './contexts/ThemeContext';
+import ThemeToggle from './components/common/ThemeToggle';
 import './App.css';
 
 interface User {
@@ -23,7 +25,7 @@ function Navigation({ currentUser, onLogout }: { currentUser: User; onLogout: ()
     };
 
     return (
-        <nav className="bg-gradient-to-r from-blue-600 to-blue-700 shadow-lg">
+        <nav className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-gray-800 dark:to-gray-900 shadow-lg">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
                     <div className="flex">
@@ -50,6 +52,7 @@ function Navigation({ currentUser, onLogout }: { currentUser: User; onLogout: ()
                             >
                                 <LogOut className="w-5 h-5" />
                             </button>
+                            <ThemeToggle />
                         </div>
                         <div className="hidden sm:ml-8 sm:flex sm:space-x-4">
                             <Link
@@ -128,20 +131,22 @@ function App() {
     }
 
     return (
-        <Router>
-            <div className="min-h-screen bg-slate-50">
-                {/* Navigation with User Info */}
-                <Navigation currentUser={currentUser} onLogout={handleLogout} />
+        <ThemeProvider>
+            <Router>
+                <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
+                    {/* Navigation with User Info */}
+                    <Navigation currentUser={currentUser} onLogout={handleLogout} />
 
-                {/* Routes - Pass user, token, and shared WebSocket connection to components */}
-                <main>
-                    <Routes>
-                        <Route path="/" element={<ChatApp user={currentUser} token={userToken} wsConnection={wsConnection} userToken={userToken} />} />
-                        <Route path="/call" element={<CallApp user={currentUser} token={userToken} wsConnection={wsConnection} userToken={userToken} />} />
-                    </Routes>
-                </main>
-            </div>
-        </Router>
+                    {/* Routes - Pass user, token, and shared WebSocket connection to components */}
+                    <main>
+                        <Routes>
+                            <Route path="/" element={<ChatApp user={currentUser} token={userToken} wsConnection={wsConnection} userToken={userToken} />} />
+                            <Route path="/call" element={<CallApp user={currentUser} token={userToken} wsConnection={wsConnection} userToken={userToken} />} />
+                        </Routes>
+                    </main>
+                </div>
+            </Router>
+        </ThemeProvider>
     );
 }
 

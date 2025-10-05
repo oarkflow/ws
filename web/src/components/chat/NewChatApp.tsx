@@ -475,7 +475,7 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
     const activeThreadMessages = activeThread ? getThreadMessages(activeThread.id) : [];
 
     return (
-        <div className="h-screen w-screen bg-slate-50 flex overflow-hidden">
+        <div className="h-screen w-screen bg-slate-50 dark:bg-gray-900 flex overflow-hidden">
             {/* Sidebar */}
             <SlackSidebar
                 isConnected={isConnected}
@@ -544,7 +544,7 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
 
             {/* Active Call Screen */}
             {currentCall && (
-                <div className="fixed inset-0 bg-slate-900 z-50">
+                <div className="fixed inset-0 bg-slate-900 dark:bg-gray-900 z-50">
                     <CallScreen
                         roomId={currentCall.roomId}
                         displayName={user.name || user.email || currentUserAlias}

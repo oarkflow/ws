@@ -101,8 +101,8 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onJoinCall }) => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900">
-            <div className="bg-slate-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-slate-900 dark:bg-gray-900">
+            <div className="bg-slate-800 dark:bg-gray-800 rounded-2xl p-8 max-w-md w-full shadow-2xl">
                 <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
                         <Video className="w-8 h-8 text-white" />
@@ -121,7 +121,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onJoinCall }) => {
                         value={authToken}
                         onChange={(e) => setAuthToken(e.target.value)}
                         placeholder="Leave empty for demo"
-                        className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                        className="w-full px-4 py-3 bg-slate-700 dark:bg-gray-700 border border-slate-600 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
                     />
                 </div>
 
@@ -133,7 +133,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onJoinCall }) => {
                         value={roomId}
                         onChange={(e) => setRoomId(e.target.value)}
                         placeholder="Enter room ID or create new"
-                        className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                        className="w-full px-4 py-3 bg-slate-700 dark:bg-gray-700 border border-slate-600 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
                     />
                     <p className="text-xs text-slate-500 mt-1">Leave empty to create a new room</p>
                 </div>
@@ -146,7 +146,7 @@ const SetupScreen: React.FC<SetupScreenProps> = ({ onJoinCall }) => {
                         value={displayName}
                         onChange={(e) => setDisplayName(e.target.value)}
                         placeholder="Your name"
-                        className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                        className="w-full px-4 py-3 bg-slate-700 dark:bg-gray-700 border border-slate-600 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white dark:text-gray-100 placeholder-slate-400 dark:placeholder-gray-500"
                     />
                 </div>
 
