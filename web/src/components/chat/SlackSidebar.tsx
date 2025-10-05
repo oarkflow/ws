@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Hash, MessageCircle, Plus, ChevronDown, ChevronRight, Users, Wifi, WifiOff } from 'lucide-react';
+import React from 'react';
+import { Hash, MessageCircle, Plus, Users, Wifi, WifiOff } from 'lucide-react';
 import type { Thread } from '../../types/thread';
 import type { User } from '../../hooks/useWebSocket';
 
@@ -32,9 +32,6 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
     onConnect,
     onDisconnect
 }) => {
-    const [channelsExpanded, setChannelsExpanded] = useState(true);
-    const [directMessagesExpanded, setDirectMessagesExpanded] = useState(true);
-
     // Separate threads by type
     const broadcastThread = threads.find(t => t.type === 'broadcast');
     const channelThreads = threads.filter(t => t.type === 'topic');
@@ -111,18 +108,11 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
 
                 {/* Channels Section */}
                 <div className="px-2 py-2">
-                    <div className="w-full flex items-center space-x-2 px-2 py-1 text-sm font-semibold text-gray-400 dark:text-gray-500">
-                        <button
-                            onClick={() => setChannelsExpanded(!channelsExpanded)}
-                            className="flex items-center space-x-2 flex-1 hover:text-white transition-colors"
-                        >
-                            {channelsExpanded ? (
-                                <ChevronDown className="w-4 h-4" />
-                            ) : (
-                                <ChevronRight className="w-4 h-4" />
-                            )}
-                            <span className="text-left">Channels</span>
-                        </button>
+                    <div className="flex items-center justify-between">
+                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 font-semibold">
+                            <Hash className="w-3 h-3 inline mr-1" />
+                            Channels
+                        </div>
                         <button
                             onClick={onCreateChannel}
                             className="p-1 hover:bg-gray-700 dark:hover:bg-gray-800 hover:text-white rounded transition-colors"
@@ -132,107 +122,93 @@ const SlackSidebar: React.FC<SlackSidebarProps> = ({
                         </button>
                     </div>
 
-                    {channelsExpanded && (
-                        <div className="mt-1 space-y-0.5">
-                            {channelThreads.length === 0 ? (
-                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                    No channels yet
-                                </div>
-                            ) : (
-                                channelThreads.map(thread => (
-                                    <button
-                                        key={thread.id}
-                                        onClick={() => onThreadSelect(thread)}
-                                        className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === thread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
-                                            }`}
-                                    >
-                                        <Hash className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
-                                        <span className="flex-1 text-left text-sm truncate">
-                                            {thread.topicName || thread.name}
+                    <div className="mt-1 space-y-0.5">
+                        {channelThreads.length === 0 ? (
+                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                No channels yet
+                            </div>
+                        ) : (
+                            channelThreads.map(thread => (
+                                <button
+                                    key={thread.id}
+                                    onClick={() => onThreadSelect(thread)}
+                                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === thread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
+                                        }`}
+                                >
+                                    <Hash className="w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                    <span className="flex-1 text-left text-sm truncate">
+                                        {thread.topicName || thread.name}
+                                    </span>
+                                    {(thread.unreadCount || 0) > 0 && (
+                                        <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                                            {thread.unreadCount}
                                         </span>
-                                        {(thread.unreadCount || 0) > 0 && (
-                                            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                                                {thread.unreadCount}
-                                            </span>
-                                        )}
-                                    </button>
-                                ))
-                            )}
-                        </div>
-                    )}
+                                    )}
+                                </button>
+                            ))
+                        )}
+                    </div>
                 </div>
 
                 {/* Direct Messages Section */}
                 <div className="px-2 py-2">
-                    <button
-                        onClick={() => setDirectMessagesExpanded(!directMessagesExpanded)}
-                        className="w-full flex items-center space-x-2 px-2 py-1 text-sm font-semibold text-gray-400 dark:text-gray-500 hover:text-white transition-colors"
-                    >
-                        {directMessagesExpanded ? (
-                            <ChevronDown className="w-4 h-4" />
-                        ) : (
-                            <ChevronRight className="w-4 h-4" />
-                        )}
-                        <span className="flex-1 text-left">Direct Messages</span>
-                        <span className="text-xs bg-gray-700 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                            {users.filter(u => u.id !== currentUserId).length}
-                        </span>
-                    </button>
+                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 font-semibold">
+                        <MessageCircle className="w-3 h-3 inline mr-1" />
+                        Direct Messages
+                    </div>
 
-                    {directMessagesExpanded && (
-                        <div className="mt-1 space-y-0.5">
-                            {/* Existing DM threads */}
-                            {directThreads.map(thread => {
-                                const user = users.find(u => u.id === thread.recipientId);
-                                return (
+                    <div className="mt-1 space-y-0.5">
+                        {/* Existing DM threads */}
+                        {directThreads.map(thread => {
+                            const user = users.find(u => u.id === thread.recipientId);
+                            return (
+                                <button
+                                    key={thread.id}
+                                    onClick={() => onThreadSelect(thread)}
+                                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === thread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
+                                        }`}
+                                >
+                                    <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
+                                    <span className="flex-1 text-left text-sm truncate">
+                                        {user?.alias || thread.name}
+                                    </span>
+                                    {(thread.unreadCount || 0) > 0 && (
+                                        <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                                            {thread.unreadCount}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+
+                        {/* Available users without threads */}
+                        {usersWithoutThread.length > 0 && (
+                            <>
+                                <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 font-semibold">
+                                    <Users className="w-3 h-3 inline mr-1" />
+                                    Available Users
+                                </div>
+                                {usersWithoutThread.map(user => (
                                     <button
-                                        key={thread.id}
-                                        onClick={() => onThreadSelect(thread)}
-                                        className={`w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors ${activeThread?.id === thread.id ? 'bg-gray-700 dark:bg-gray-800' : ''
-                                            }`}
+                                        key={user.id}
+                                        onClick={() => handleUserClick(user.id)}
+                                        className="w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors opacity-70 hover:opacity-100"
                                     >
                                         <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
                                         <span className="flex-1 text-left text-sm truncate">
-                                            {user?.alias || thread.name}
+                                            {user.alias || user.id}
                                         </span>
-                                        {(thread.unreadCount || 0) > 0 && (
-                                            <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                                                {thread.unreadCount}
-                                            </span>
-                                        )}
                                     </button>
-                                );
-                            })}
+                                ))}
+                            </>
+                        )}
 
-                            {/* Available users without threads */}
-                            {usersWithoutThread.length > 0 && (
-                                <>
-                                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 font-semibold">
-                                        <Users className="w-3 h-3 inline mr-1" />
-                                        Available Users
-                                    </div>
-                                    {usersWithoutThread.map(user => (
-                                        <button
-                                            key={user.id}
-                                            onClick={() => handleUserClick(user.id)}
-                                            className="w-full flex items-center space-x-2 px-3 py-2 rounded hover:bg-gray-700 dark:hover:bg-gray-800 transition-colors opacity-70 hover:opacity-100"
-                                        >
-                                            <div className="w-2 h-2 bg-green-400 rounded-full flex-shrink-0" />
-                                            <span className="flex-1 text-left text-sm truncate">
-                                                {user.alias || user.id}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </>
-                            )}
-
-                            {users.filter(u => u.id !== currentUserId).length === 0 && (
-                                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
-                                    No users online
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        {users.filter(u => u.id !== currentUserId).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                                No users online
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 

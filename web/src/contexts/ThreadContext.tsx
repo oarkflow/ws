@@ -37,6 +37,13 @@ export const ThreadProvider: React.FC<ThreadProviderProps> = ({ children }) => {
             type: 'broadcast',
             name: 'All Messages',
             unreadCount: 0
+        },
+        {
+            id: 'general',
+            type: 'topic',
+            name: 'General',
+            topicName: 'general',
+            unreadCount: 0
         }
     ]);
     const [threadMessages, setThreadMessages] = useState<Map<string, ThreadMessage[]>>(new Map());

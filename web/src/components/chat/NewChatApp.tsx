@@ -171,6 +171,13 @@ const ChatAppContent: React.FC<ChatAppProps> = ({ user, wsConnection, userToken 
         }
     }, [isConnected, requestUserList]);
 
+    // Subscribe to general topic on connect
+    useEffect(() => {
+        if (isConnected) {
+            subscribe('general');
+        }
+    }, [isConnected, subscribe]);
+
     // Process incoming WebSocket messages and organize by thread
     useEffect(() => {
         if (messages.length === 0) return;

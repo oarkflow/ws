@@ -525,6 +525,16 @@ func (s *Socket) GetID() string {
 	return s.ID
 }
 
+// Subscribe subscribes the socket to a topic
+func (s *Socket) Subscribe(topic string) {
+	s.conn.Subscribe(topic)
+}
+
+// Unsubscribe unsubscribes the socket from a topic
+func (s *Socket) Unsubscribe(topic string) {
+	s.conn.Unsubscribe(topic)
+}
+
 // Close closes the socket connection
 func (s *Socket) Close() {
 	s.conn.conn.Close()
