@@ -65,20 +65,23 @@ func (h *Hub) NewSocket(conn *Connection, userToken string) *Socket {
 		return nil
 	}
 
-	// Check if user already has an active connection (be less aggressive to prevent cascade)
+	// Check if user already has an active connection
 	if userToken != "" {
 		if existingSocket, exists := h.userSockets[userToken]; exists {
-			// Check if the existing connection is actually active
+			// Try to detect if the existing connection is truly alive
+			// For now, we'll be more lenient: forcibly close the old connection
+			// and allow the new one to prevent reconnection loops
+			log.Printf("User %s has an existing connection, forcibly closing old connection and accepting new one", userToken)
+
+			// Close the old connection
 			if existingSocket.conn != nil && existingSocket.conn.conn != nil {
-				log.Printf("User %s already has an active connection, rejecting new connection to prevent cascade", userToken)
-				conn.conn.Close()
-				return nil
-			} else {
-				// Existing connection is dead, clean it up
-				log.Printf("User %s has dead connection, cleaning up and accepting new one", userToken)
-				delete(h.sockets, existingSocket.ID)
-				h.connCount--
+				existingSocket.conn.conn.Close()
 			}
+
+			// Clean up old socket
+			delete(h.sockets, existingSocket.ID)
+			delete(h.userSockets, userToken)
+			h.connCount--
 		}
 	}
 
@@ -373,6 +376,7 @@ func (h *Hub) RemoveSocket(socketID string) {
 		for userToken, userSocket := range h.userSockets {
 			if userSocket.ID == socketID {
 				delete(h.userSockets, userToken)
+				log.Printf("Removed user token mapping for socket %s", socketID)
 				break
 			}
 		}
